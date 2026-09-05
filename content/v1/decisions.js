@@ -26,6 +26,92 @@
 
 /** @type {readonly Tmpl[]} */
 export const DECISION_TEMPLATES = [
+  /*
+   * 覆蓋率用的兩張。
+   *
+   * 原本四張模板全都要求分差 ≤ 2 或 ≤ 3，所以比數一拉開就沒有任何一張對得上 ——
+   * 實測 11.6% 的比賽玩家整場零決策，只能看。這兩張刻意不設分差條件，
+   * 讓「大比分領先時要不要保留戰力」「垃圾時間要不要練兵」也是需要判斷的局面。
+   */
+  {
+    id: 'bullpen_management',
+    kind: 'PITCHING_CHANGE',
+    priority: 40,
+    trigger: { side: 'PITCHING', minInning: 4, minPitchCount: 45 },
+    title: '牛棚有人在熱身',
+    body: '{{inning}} 局{{half}}，{{pitcher}} 已經投了 {{pitchCount}} 球。後面還有比賽要打，牛棚也不是無限的。',
+    options: [
+      {
+        id: 'stay',
+        label: '讓他再撐一局',
+        baseRate: 0.5,
+        rateMods: [{ source: 'conditioning', label: '你的「體能管理」{{conditioning}}', from: 'coachAttr', attr: 'conditioning', points: 12 }],
+        preview: ['成功：省下牛棚，後面的比賽有人可用', '失敗：這一局被打穿，而且他的手臂也累了'],
+        action: 'STAY',
+        successText: '{{pitcher}} 又解決一局。他下場時朝休息區點了個頭。',
+        failText: '{{pitcher}} 的球已經沒有進壘點了，這一局被連續掃出安打。',
+      },
+      {
+        id: 'fresh',
+        label: '換上生力軍',
+        baseRate: 0.58,
+        rateMods: [{ source: 'bullpen', label: '你的「用兵」{{bullpen}}', from: 'coachAttr', attr: 'bullpen', points: 14 }],
+        preview: ['成功：新投手直接壓制', '失敗：牛棚提前消耗，接下來幾場少一個人'],
+        action: 'PULL_PITCHER',
+        successText: '生力軍上來就是三上三下。這球換得漂亮。',
+        failText: '接手的投手抓不到好球帶，馬上讓壘上有人。',
+      },
+      {
+        id: 'match',
+        label: '找對位的投手上來對決',
+        baseRate: 0.42,
+        rateMods: [{ source: 'scouting', label: '你的「識人」{{scouting}}', from: 'coachAttr', attr: 'scouting', points: 20 }],
+        preview: ['成功：對位吃死這一棒，士氣大振', '失敗：對位判斷錯誤，被打爆'],
+        action: 'PULL_PITCHER',
+        successText: '這個對位完全吃死對方的打者。轉播單位重播了三次你在休息區的表情。',
+        failText: '對位完全看錯。那顆球被打得又高又遠。',
+      },
+    ],
+  },
+  {
+    id: 'offense_tempo',
+    kind: 'STEAL',
+    priority: 35,
+    trigger: { side: 'BATTING', minInning: 3, runners: 'ANY' },
+    title: '要不要動跑者',
+    body: '{{inning}} 局{{half}}，{{outs}} 人出局，壘上有人。對方投手的牽制動作有點慢。',
+    options: [
+      {
+        id: 'steal',
+        label: '啟動跑者',
+        baseRate: 0.44,
+        rateMods: [{ source: 'communication', label: '你的「溝通」{{communication}}', from: 'coachAttr', attr: 'communication', points: 16 }],
+        preview: ['成功：跑者推進到得點圈', '失敗：跑者被觸殺，攻勢中斷'],
+        action: 'STEAL',
+        successText: '跑者起步的時機抓得剛好，一個滑壘搶進二壘。',
+        failText: '捕手的傳球又快又準，跑者在二壘前被觸殺。',
+      },
+      {
+        id: 'hold',
+        label: '不動，讓打者處理',
+        baseRate: 0.55,
+        preview: ['成功：打者自己解決，跑者也還在', '失敗：打成雙殺，什麼都沒了'],
+        action: 'STAY',
+        successText: '{{batter}} 把球送進外野，跑者一路奔回三壘。',
+        failText: '{{batter}} 打成軟弱的滾地球，二壘、一壘，雙殺。',
+      },
+      {
+        id: 'patient',
+        label: '要打者纏鬥，先消耗對方球數',
+        baseRate: 0.66,
+        rateMods: [{ source: 'intel', label: '你的「情蒐」{{intel}}', from: 'coachAttr', attr: 'intel', points: 14 }],
+        preview: ['成功：磨掉對方投手的球數', '失敗：陷入不利球數，被三振'],
+        action: 'STAY',
+        successText: '{{batter}} 一連看掉六球，對方投手的球數又多了一截。',
+        failText: '{{batter}} 等球等到兩好球，最後被一顆邊邊角角的變化球三振。',
+      },
+    ],
+  },
   {
     id: 'pull_ace_high_pitch',
     kind: 'PITCHING_CHANGE',
@@ -151,7 +237,7 @@ export const DECISION_TEMPLATES = [
     id: 'pinch_hit_late',
     kind: 'PINCH_HIT',
     priority: 60,
-    trigger: { side: 'BATTING', minInning: 7, maxScoreDiff: 3, trailingOrTied: true },
+    trigger: { side: 'BATTING', minInning: 7, maxScoreDiff: 6, trailingOrTied: true },
     title: '要不要動代打',
     body: '{{inning}} 局{{half}}，{{outs}} 人出局。輪到 {{batter}}，板凳上還有沒用過的牌。',
     options: [

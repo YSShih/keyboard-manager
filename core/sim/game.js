@@ -3,8 +3,9 @@ import { makeRng } from '../rng/rng.js';
 import { computeOdds, mod, ratingMod } from '../odds/odds.js';
 import { interpolate } from '../content/template.js';
 import { resolvePlateAppearance, OUTCOME_LABEL, carryOverPitches, pullLimit } from './atBat.js';
-import { advanceRunners, applyBunt } from './advance.js';
+import { advanceRunners, applyBunt, applySteal } from './advance.js';
 import { shouldPause } from './leverage.js';
+import { TUNING } from '../../content/tuning.js';
 import { makeOpponentSquad } from './opponent.js';
 
 /** @typedef {import('../domain/types.js').Player} Player */
@@ -31,6 +32,7 @@ import { makeOpponentSquad } from './opponent.js';
  * @property {NationDef} nation 對手
  * @property {boolean} weAreHome
  * @property {readonly Tmpl[]} templates
+ * @property {'aggressive'|'balanced'|'conservative'} [stance] 賽前設定的戰術傾向
  */
 
 const MAX_INNINGS = 15;
@@ -40,6 +42,9 @@ const MAX_INNINGS = 15;
  * 而平手在目前的賽制裡會被算成敗，等於用一個永遠倒向玩家的規則決定 2% 的比賽。
  */
 const TIEBREAK_FROM = 10;
+
+/** 戰術傾向對跑壘的影響。只作用在我方進攻，對手一律用平衡。 */
+const STANCE = TUNING.stance;
 /** 決策效果的基準幅度。實際幅度 = SWING_BASE × (1 − 成功率)。 */
 const SWING_BASE = 42;
 
@@ -87,6 +92,7 @@ function optionOdds(opt, coach) {
  */
 export function* simulateGame(ctx) {
   const opp = makeOpponentSquad(ctx.seed, ctx.key, ctx.nation);
+  const stance = STANCE[ctx.stance ?? 'balanced'] ?? STANCE.balanced;
 
   // 我方
   const lineup = ctx.lineup.slice();
@@ -222,6 +228,7 @@ export function* simulateGame(ctx) {
             title: interpolate(tmpl.title, vars),
             body: interpolate(tmpl.body, vars),
             context: snap,
+            extra: null,
             options,
           };
           const resp = yield { t: 'DECISION', prompt };
@@ -277,6 +284,27 @@ export function* simulateGame(ctx) {
           if (walkOff) break;
           continue;
         }
+        if (applied.action === 'STEAL' && weBat) {
+          const before = bases[2];
+          const r = applySteal(bases, applied.success);
+          bases = r.bases;
+          outs += r.outsAdded;
+          // 盜本壘成功會得分
+          const stoleHome = before && applied.success && !r.bases[2] && r.outsAdded === 0;
+          const gained = stoleHome ? 1 : 0;
+          runsUs += gained;
+          if (gained > 0 && isWalkOff(inning, half, weBat)) walkOff = true;
+          yield {
+            t: 'PLAY',
+            narrative: `${applied.text}（${r.note}）`,
+            snapshot: { ...snap, bases, outs, runsUs },
+            outcome: 'OUT_G',
+            runs: gained,
+          };
+          if (outs >= 3 || walkOff) break;
+          // 盜壘不消耗打席，同一名打者繼續打
+          continue;
+        }
         if (applied.action === 'BUNT' && weBat) {
           const r = applyBunt(bases, applied.success);
           bases = r.bases; runsUs += r.runs; outs += r.outsAdded;
@@ -329,7 +357,10 @@ export function* simulateGame(ctx) {
       const runnerSpeed = weBat
         ? lineup.reduce((s, p) => s + p.ratings.bat.speed, 0) / lineup.length
         : ctx.nation.strength;
-      const adv = advanceRunners(bases, pa.outcome, outs, runnerSpeed, makeRng(ctx.seed, `${abKey}/adv`));
+      const adv = advanceRunners(
+        bases, pa.outcome, outs, runnerSpeed, makeRng(ctx.seed, `${abKey}/adv`),
+        weBat ? stance : STANCE.balanced,
+      );
       bases = adv.bases;
       outs += adv.outsAdded;
       if (weBat) runsUs += adv.runs; else runsThem += adv.runs;

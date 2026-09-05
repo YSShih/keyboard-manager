@@ -17,6 +17,7 @@ import { PREMIER12_2027, OLYMPIC_BERTH_RULE, checkOlympicBerth } from '../../con
 /** @typedef {import('../domain/types.js').Player} Player */
 /** @typedef {import('../domain/types.js').PlayerId} PlayerId */
 /** @typedef {import('../domain/types.js').CoachAttrKey} CoachAttrKey */
+/** @typedef {import('../domain/types.js').Coach} Coach */
 /** @typedef {import('../domain/types.js').GameResult} GameResult */
 
 /** @type {readonly CoachAttrKey[]} */
@@ -156,6 +157,7 @@ export function* runCareer(initial) {
     title: '徵召名單',
     body: `從 ${st.poolOrder.length} 人的球員池裡挑出 ${TUNING.pool.rosterSize} 人。系統已經幫你排好一份，你可以直接開打，也可以自己調。`,
     context: null,
+    extra: null,
     options: [{ id: encodeRosterChoice(suggested.members), label: '採用建議名單', odds: null, preview: [], lockedReason: null }],
   };
   const rosterResp = yield { t: 'DECISION', prompt: rosterPrompt };
@@ -187,16 +189,47 @@ export function* runCareer(initial) {
 
     for (const code of stage.opponents) {
       const opp = nation(code);
+      const gameKey = `career/${st.year}/game/${String(gameIndex).padStart(2, '0')}`;
+
+      // ── 賽前調度 ────────────────────────────────────────
+      const preview = gameSquad(st.players, roster, gameIndex);
+      const pregameResp = yield {
+        t: 'DECISION',
+        prompt: {
+          rngKey: `${gameKey}/pregame`,
+          kind: 'PREGAME',
+          templateId: 'pregame',
+          title: `第 ${gameIndex + 1} 戰　vs ${opp.name}`,
+          body: `${stage.name}・${stage.venue}\n先發投手與跑壘方針由你決定。`,
+          context: null,
+          extra: {
+            opponent: opp.name,
+            venue: stage.venue,
+            starters: preview.rotationOptions.map((p) => ({
+              id: p.id,
+              name: p.name,
+              load: Math.round(p.condition.workload.pitchesInEvent),
+              overall: overall(p),
+            })),
+          },
+          options: [{
+            id: encodePregameChoice(preview.pitchers[0]?.id ?? null, 'balanced'),
+            label: '照建議出戰', odds: null, preview: [], lockedReason: null,
+          }],
+        },
+      };
+      const plan = decodePregameChoice(pregameResp?.optionId);
+
       yield {
         t: 'GAME_START', index: gameIndex, stageId: stage.id,
         stageName: stage.name, venue: stage.venue,
         opponent: code, opponentName: opp.name,
       };
 
-      const squad = gameSquad(st.players, roster, gameIndex);
+      const squad = gameSquad(st.players, roster, gameIndex, plan.starterId);
       const result = yield* simulateGame({
         seed: st.seed,
-        key: `career/${st.year}/game/${String(gameIndex).padStart(2, '0')}`,
+        key: gameKey,
         index: gameIndex,
         stageId: stage.id,
         lineup: squad.lineup,
@@ -206,11 +239,56 @@ export function* runCareer(initial) {
         nation: opp,
         weAreHome: stage.venue === '臺北大巨蛋',
         templates: DECISION_TEMPLATES,
+        stance: plan.stance,
       });
 
       results.push(result);
       if (result.win) stageWins++;
-      st = applyPostGame(st, result, gameIndex);
+      const played = new Set([
+        ...squad.lineup.map((p) => p.id),
+        ...Object.keys(result.pitchCounts),
+      ]);
+      const post = applyPostGame(st, result, gameIndex, played);
+      st = post.state;
+
+      // ── 賽後結果 ────────────────────────────────────────
+      const gamePoints = result.win
+        ? TUNING.reward.pointsPerWinGame
+        : TUNING.reward.pointsPerLossGame;
+      st = {
+        ...st,
+        coach: { ...st.coach, unspentPoints: st.coach.unspentPoints + gamePoints },
+      };
+
+      const mvpName = result.mvp ? st.players[result.mvp]?.name : null;
+      yield {
+        t: 'PHASE', phase: 'REVIEW',
+        title: `${result.win ? '勝' : '敗'}　${result.runsFor} : ${result.runsAgainst}　vs ${opp.name}`,
+        body: [
+          `${stage.name}・${stage.venue}　第 ${gameIndex + 1} 戰`,
+          mvpName ? `本場最佳：${mvpName}` : null,
+          result.highlights.length ? result.highlights[0] : null,
+          post.newInjuries.length ? `⚠️ 傷兵：${post.newInjuries.join('、')}` : null,
+          `獲得能力點 ${gamePoints} 點`,
+        ].filter(Boolean).join('\n'),
+      };
+
+      // ── 賽後分配 ────────────────────────────────────────
+      const gAlloc = yield {
+        t: 'DECISION',
+        prompt: {
+          rngKey: `${gameKey}/allocate`,
+          kind: 'ALLOCATE',
+          templateId: 'allocate_game',
+          title: `分配 ${gamePoints} 點能力`,
+          body: '能力越接近上限，每一點的效果越差。上限是隱藏的。',
+          context: null,
+          extra: { points: gamePoints },
+          options: [{ id: '', label: '分配', odds: null, preview: [], lockedReason: null }],
+        },
+      };
+      st = applyAllocation(st, gAlloc?.optionId ?? '', gamePoints);
+
       gameIndex++;
     }
 
@@ -251,7 +329,8 @@ export function* runCareer(initial) {
   const berth = checkOlympicBerth(finalRankNum, results);
   const reward = def.rankRewards.find((r) => r.rank === finalRankNum)
     ?? def.rankRewards[def.rankRewards.length - 1];
-  const winPoints = results.filter((r) => r.win).length * def.pointsPerWin;
+  // 勝場點數已經在每場賽後給過了，這裡只算名次獎勵與能力加成，避免重複計算。
+  const winPoints = 0;
   const avgAttr = COACH_ATTRS.reduce((s, k) => s + st.coach.attrs[k], 0) / COACH_ATTRS.length;
   // 「能力越高，大賽收穫越多」——抄 yakyolife 的正回饋。
   // 下限為 0：新手教頭本來就低於 50，不該因為「還沒開始成長」而被倒扣，
@@ -283,7 +362,7 @@ export function* runCareer(initial) {
     body: [
       `${results.filter((r) => r.win).length} 勝 ${results.filter((r) => !r.win).length} 敗`,
       berth.got ? `🎟️ 取得 2028 洛杉磯奧運門票 — ${berth.reason}` : `❌ 未取得奧運門票 — ${berth.reason}`,
-      `獲得能力點 ${totalPoints} 點（名次 ${reward?.points ?? 0}＋勝場 ${winPoints}＋能力加成 ${abilityBonus}）`,
+      `名次獎勵 ${totalPoints} 點（名次 ${reward?.points ?? 0}＋能力加成 ${abilityBonus}）`,
     ].join('\n'),
   };
 
@@ -297,8 +376,9 @@ export function* runCareer(initial) {
       kind: 'ALLOCATE',
       templateId: 'allocate',
       title: `分配 ${totalPoints} 點能力`,
-      body: '能力越接近上限，每一點的效果越差。上限是隱藏的，你只看得到目前的進度條。',
+      body: '賽事結束的名次獎勵。能力越接近上限，每一點的效果越差。',
       context: null,
+      extra: { points: totalPoints },
       options: [{ id: '', label: '分配', odds: null, preview: [], lockedReason: null }],
     },
   };
@@ -349,9 +429,12 @@ function rebuildRoster(st, ids, fallback) {
  * @param {CareerState} st
  * @param {GameResult} result
  * @param {number} gameIndex
- * @returns {CareerState}
+ * @param {ReadonlySet<string>} played 這場實際有上場的球員 id
+ * @returns {{state: CareerState, newInjuries: string[]}}
  */
-function applyPostGame(st, result, gameIndex) {
+function applyPostGame(st, result, gameIndex, played) {
+  /** @type {string[]} */
+  const newInjuries = [];
   const rng = makeRng(st.seed, `career/${st.year}/postgame/${gameIndex}`);
   /** @type {Record<PlayerId, Player>} */
   const players = { ...st.players };
@@ -364,6 +447,7 @@ function applyPostGame(st, result, gameIndex) {
     if (!(st.roster?.members.includes(id) ?? false)) continue;
 
     const threw = result.pitchCounts[id] ?? 0;
+    const appeared = played.has(id);
     let condition = { ...p.condition };
 
     // ── 投球負荷：有投就累積、沒投就休息 ──────────────────
@@ -388,7 +472,7 @@ function applyPostGame(st, result, gameIndex) {
     if (condition.injury) {
       const gamesOut = condition.injury.gamesOut - 1;
       condition.injury = gamesOut <= 0 ? null : { ...condition.injury, gamesOut };
-    } else {
+    } else if (appeared) {
       // 基礎機率 → 耐用度修正 → 體能管理修正 → 用量超載修正。
       // 最後一項讓「續投王牌會提高傷病風險」從面板上的一句話變成真的。
       let pct = inj.perGameBase * 100
@@ -405,6 +489,7 @@ function applyPostGame(st, result, gameIndex) {
           gamesOut: rng.int(1, 3 + severity),
           severity: /** @type {1|2|3} */ (severity),
         };
+        newInjuries.push(`${p.name}（休 ${condition.injury.gamesOut} 場）`);
       }
     }
 
@@ -419,11 +504,45 @@ function applyPostGame(st, result, gameIndex) {
   ));
 
   return {
-    ...st,
-    players,
-    coach: { ...st.coach, meters: { ...st.coach.meters, playerMorale: morale } },
+    state: {
+      ...st,
+      players,
+      coach: { ...st.coach, meters: { ...st.coach.meters, playerMorale: morale } },
+    },
+    newInjuries,
   };
 }
+
+/**
+ * 賽前調度的 optionId 編碼：'sp:P07|stance:aggressive'
+ * @param {?PlayerId} starterId
+ * @param {'aggressive'|'balanced'|'conservative'} stance
+ * @returns {string}
+ */
+export function encodePregameChoice(starterId, stance) {
+  return `sp:${starterId ?? ''}|stance:${stance}`;
+}
+
+/**
+ * @param {string|undefined} optionId
+ * @returns {{starterId: ?PlayerId, stance: 'aggressive'|'balanced'|'conservative'}}
+ */
+function decodePregameChoice(optionId) {
+  const out = { starterId: /** @type {?PlayerId} */ (null), stance: /** @type {any} */ ('balanced') };
+  for (const part of (optionId ?? '').split('|')) {
+    const [k, v] = part.split(':');
+    if (k === 'sp' && v) out.starterId = /** @type {PlayerId} */ (v);
+    if (k === 'stance' && ['aggressive', 'balanced', 'conservative'].includes(v ?? '')) out.stance = v;
+  }
+  return out;
+}
+
+/** @type {Record<string, string>} */
+export const STANCE_LABEL = {
+  aggressive: '積極',
+  balanced: '平衡',
+  conservative: '保守',
+};
 
 /**
  * @param {number} rankNum
@@ -470,6 +589,67 @@ export function applyAllocation(st, optionId, available) {
     ...st,
     coach: { ...st.coach, attrs, unspentPoints: st.coach.unspentPoints - spent },
   };
+}
+
+/**
+ * 自動配置能力點。
+ *
+ * 策略是「衝最有效益的」：每一點都挑
+ *   （這一點實際能加多少）×（這項能力在決策模板裡被用到的權重）
+ * 最高的項目。前者自動避開接近上限、加下去會遞減的能力；
+ * 後者讓分配跟著實際內容走 —— 之後新增模板時，這個權重會自己更新，
+ * 不需要回來改一張寫死的優先順序表。
+ *
+ * @param {Coach} coach
+ * @param {number} points
+ * @param {readonly import('../../content/v1/decisions.js').Tmpl[]} templates
+ * @returns {Partial<Record<CoachAttrKey, number>>}
+ */
+export function autoAllocate(coach, points, templates = DECISION_TEMPLATES) {
+  /** @type {Record<string, number>} */
+  const weight = {};
+  // 基準權重：體能管理（疲勞、傷病）與識人（潛力揭露）的作用不透過決策模板發生，
+  // 純看模板引用次數會嚴重低估它們。這個底數代表那些「場外」價值。
+  for (const k of COACH_ATTRS) weight[k] = TUNING.coach.autoAllocateBase[k];
+  for (const t of templates) {
+    for (const o of t.options) {
+      for (const m of o.rateMods ?? []) {
+        if (m.from === 'coachAttr' && m.attr) {
+          weight[m.attr] = (weight[m.attr] ?? 0) + Math.abs(m.points);
+        }
+      }
+    }
+  }
+  const weightTotal = COACH_ATTRS.reduce((sum, k) => sum + (weight[k] ?? 0), 0) || 1;
+
+  /** @type {Record<string, number>} */
+  const attrs = {};
+  for (const k of COACH_ATTRS) attrs[k] = coach.attrs[k];
+  /** @type {Partial<Record<CoachAttrKey, number>>} */
+  const alloc = {};
+
+  for (let i = 0; i < points; i++) {
+    const attrTotal = COACH_ATTRS.reduce((sum, k) => sum + (attrs[k] ?? 0), 0) || 1;
+    /** @type {?CoachAttrKey} */
+    let best = null;
+    let bestGap = -Infinity;
+
+    for (const k of COACH_ATTRS) {
+      const cur = attrs[k] ?? 0;
+      // 已達上限，加下去是浪費
+      if (applyGrowth(cur, coach.caps[k], 1) - cur <= 0) continue;
+      // 目前佔比距離「應有佔比」還差多少。差最多的先補。
+      // 用比例而不是純權重排序，是因為純權重會讓最高權重的能力把所有點數吃光 ——
+      // 但一維教頭實際上更弱：情蒐掛零就代表佈陣選項永遠很爛。
+      const gap = (weight[k] ?? 0) / weightTotal - cur / attrTotal;
+      // 同分時取 COACH_ATTRS 的固定順序，確保自動配置是決定性的
+      if (gap > bestGap + 1e-9) { bestGap = gap; best = k; }
+    }
+    if (!best) break;
+    attrs[best] = applyGrowth(attrs[best] ?? 0, coach.caps[best], 1);
+    alloc[best] = (alloc[best] ?? 0) + 1;
+  }
+  return alloc;
 }
 
 /**

@@ -1,6 +1,6 @@
 // @ts-check
 import { makeRng } from '../rng/rng.js';
-import { runCareer, COACH_ATTRS, encodeAllocChoice } from './career.js';
+import { runCareer, COACH_ATTRS, encodeAllocChoice, autoAllocate } from './career.js';
 
 /** @typedef {import('../domain/types.js').CareerState} CareerState */
 /** @typedef {import('../domain/types.js').CareerEvent} CareerEvent */
@@ -16,18 +16,25 @@ import { runCareer, COACH_ATTRS, encodeAllocChoice } from './career.js';
 
 /**
  * @param {import('../sim/driver.js').Policy} gamePolicy 場中決策策略
- * @param {'spread'|'focus'} allocStyle
+ * @param {'spread'|'focus'|'auto'} allocStyle
+ * @param {?CareerState} [state] 'auto' 需要目前的教頭狀態
  * @returns {CareerPolicy}
  */
-export function makeCareerPolicy(gamePolicy, allocStyle = 'spread') {
+export function makeCareerPolicy(gamePolicy, allocStyle = 'spread', state = null) {
   return {
     decide(prompt, rng) {
-      if (prompt.kind === 'ROSTER') return prompt.options[0]?.id ?? '';
+      // 名單與賽前調度都用預設值；options[0].id 就是編碼過的建議選擇。
+      if (prompt.kind === 'ROSTER' || prompt.kind === 'PREGAME') return prompt.options[0]?.id ?? '';
       if (prompt.kind === 'ALLOCATE') {
-        const total = Number(/(\d+)/.exec(prompt.title)?.[1] ?? 0);
+        const total = prompt.extra?.points ?? 0;
         if (total <= 0) return '';
         /** @type {Partial<Record<import('../domain/types.js').CoachAttrKey, number>>} */
         const alloc = {};
+        if (allocStyle === 'auto' && state) {
+          // 用遊戲內的「自動配置」按鈕跑同一支函式，這樣 headless 測到的
+          // 就是玩家按下去會得到的結果。
+          return encodeAllocChoice(autoAllocate(state.coach, total));
+        }
         if (allocStyle === 'focus') {
           const k = COACH_ATTRS[0];
           if (k) alloc[k] = total;

@@ -228,7 +228,7 @@
  */
 
 /**
- * @typedef {'PITCHING_CHANGE'|'PINCH_HIT'|'BUNT'|'IBB'|'SHIFT'|'EVENT_CARD'|'ALLOCATE'|'ROSTER'} DecisionKind
+ * @typedef {'PITCHING_CHANGE'|'PINCH_HIT'|'BUNT'|'IBB'|'SHIFT'|'STEAL'|'EVENT_CARD'|'ALLOCATE'|'ROSTER'|'PREGAME'} DecisionKind
  */
 
 /**
@@ -240,6 +240,15 @@
  * @property {string} body
  * @property {?GameSnapshot} context
  * @property {readonly DecisionOption[]} options
+ * @property {?PromptExtra} extra UI 需要的結構化資料（點數、可選投手…）
+ */
+
+/**
+ * @typedef {object} PromptExtra
+ * @property {number} [points] 這次可分配的能力點
+ * @property {readonly {id:string, name:string, load:number, overall:number}[]} [starters] 可選先發
+ * @property {string} [opponent]
+ * @property {string} [venue]
  */
 
 /**
@@ -343,7 +352,7 @@
  * @property {number} baseRate
  * @property {readonly ModifierRule[]} [rateMods]
  * @property {readonly string[]} preview
- * @property {'PULL_PITCHER'|'BUNT'|'IBB'|'SHIFT'|'PINCH_HIT'|'STAY'} action
+ * @property {'PULL_PITCHER'|'BUNT'|'IBB'|'SHIFT'|'PINCH_HIT'|'STEAL'|'STAY'} action
  * @property {string} successText
  * @property {string} failText
  */

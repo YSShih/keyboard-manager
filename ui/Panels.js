@@ -4,7 +4,10 @@ import { store, choose } from '../app/store.js';
 import { explainOdds } from '../core/odds/odds.js';
 import { overall } from '../core/career/generate.js';
 import { suggestRoster } from '../core/career/roster.js';
-import { COACH_ATTRS, COACH_ATTR_LABEL, COACH_ATTR_DESC, encodeRosterChoice, encodeAllocChoice, applyGrowth } from '../core/career/career.js';
+import {
+  COACH_ATTRS, COACH_ATTR_LABEL, COACH_ATTR_DESC, STANCE_LABEL,
+  encodeRosterChoice, encodeAllocChoice, encodePregameChoice, applyGrowth, autoAllocate,
+} from '../core/career/career.js';
 import { TUNING } from '../content/tuning.js';
 
 /**
@@ -43,7 +46,7 @@ export const DecisionPanel = defineComponent({
     const kindLabel = computed(() => ({
       PITCHING_CHANGE: '投手調度', PINCH_HIT: '代打', BUNT: '戰術暗號',
       IBB: '故意四壞', SHIFT: '守備佈陣', EVENT_CARD: '事件',
-      ALLOCATE: '能力分配', ROSTER: '徵召名單',
+      ALLOCATE: '能力分配', ROSTER: '徵召名單', STEAL: '跑壘指示', PREGAME: '賽前調度',
     })[store.prompt?.kind ?? 'EVENT_CARD'] ?? '決策');
     return { p, ctx, kindLabel, choose, pct: (/** @type {number} */ v) => Math.round(v * 100) };
   },
@@ -139,11 +142,68 @@ export const RosterPanel = defineComponent({
   </div>`,
 });
 
+/** 賽前調度面板：選先發、定跑壘方針。 */
+export const PregamePanel = defineComponent({
+  name: 'PregamePanel',
+  setup() {
+    const extra = computed(() => store.prompt?.extra ?? null);
+    const starters = computed(() => extra.value?.starters ?? []);
+    /** @type {import('vue').Ref<?string>} */
+    const pickedSp = ref(null);
+    // 記住上次的傾向，這樣每場只要按「確定出戰」就走，不用每場重選。
+    const stance = ref(store.lastStance);
+
+    const chosenSp = computed(() => pickedSp.value ?? starters.value[0]?.id ?? null);
+    const confirm = () => {
+      store.lastStance = stance.value;
+      choose(encodePregameChoice(/** @type {any} */ (chosenSp.value), /** @type {any} */ (stance.value)));
+    };
+    const STANCES = [
+      { id: 'aggressive', desc: '跑者積極搶進壘包。多得分，也多被觸殺。' },
+      { id: 'balanced', desc: '照一般判斷跑壘。' },
+      { id: 'conservative', desc: '跑者只在有把握時推進。少丟出局數，也少拿分。' },
+    ];
+    return { store, extra, starters, pickedSp, chosenSp, stance, confirm, STANCES, STANCE_LABEL };
+  },
+  template: /* html */ `
+  <div>
+    <div class="panel-head">
+      <span class="eyebrow">賽前調度</span>
+      <h2>{{ store.prompt?.title }}</h2>
+      <p>{{ store.prompt?.body }}</p>
+    </div>
+
+    <div class="section-label">先發投手</div>
+    <button v-for="p in starters" :key="p.id" class="opt"
+            :style="{borderColor: chosenSp === p.id ? 'var(--frost)' : 'var(--rule)'}"
+            @click="pickedSp = p.id">
+      <div class="opt-top">
+        <span class="opt-label">{{ p.name }}</span>
+        <span class="opt-rate" style="font-size:16px;color:var(--paper)">{{ p.overall }}</span>
+      </div>
+      <p class="opt-preview">
+        賽會累積 {{ p.load }} 球<span v-if="p.load === 0">　·　完全沒有負荷</span>
+        <span v-else-if="p.load > 90" style="color:var(--crimson)">　·　手臂很沉</span>
+      </p>
+    </button>
+
+    <div class="section-label">跑壘方針</div>
+    <button v-for="s in STANCES" :key="s.id" class="opt"
+            :style="{borderColor: stance === s.id ? 'var(--frost)' : 'var(--rule)'}"
+            @click="stance = s.id">
+      <div class="opt-top"><span class="opt-label">{{ STANCE_LABEL[s.id] }}</span></div>
+      <p class="opt-preview">{{ s.desc }}</p>
+    </button>
+
+    <button class="btn-primary" @click="confirm">確定出戰　▸</button>
+  </div>`,
+});
+
 /** 能力分配面板。 */
 export const AllocatePanel = defineComponent({
   name: 'AllocatePanel',
   setup() {
-    const total = computed(() => Number(/(\d+)/.exec(store.prompt?.title ?? '')?.[1] ?? 0));
+    const total = computed(() => store.prompt?.extra?.points ?? 0);
     /** @type {import('vue').Ref<Record<string, number>>} */
     const alloc = ref(Object.fromEntries(COACH_ATTRS.map((k) => [k, 0])));
     const spent = computed(() => Object.values(alloc.value).reduce((s, v) => s + v, 0));
@@ -170,9 +230,19 @@ export const AllocatePanel = defineComponent({
 
     const add = (/** @type {string} */ k) => { if (left.value > 0) alloc.value[k] = (alloc.value[k] ?? 0) + 1; };
     const sub = (/** @type {string} */ k) => { if ((alloc.value[k] ?? 0) > 0) alloc.value[k] = (alloc.value[k] ?? 0) - 1; };
+    const reset = () => { for (const k of COACH_ATTRS) alloc.value[k] = 0; };
+
+    /** 一鍵配置：依各能力的實際有用程度分配，並跳過已達上限的項目。 */
+    const auto = () => {
+      const coach = store.state?.coach;
+      if (!coach) return;
+      const picked = autoAllocate(coach, total.value);
+      for (const k of COACH_ATTRS) alloc.value[k] = picked[k] ?? 0;
+    };
+
     const confirm = () => choose(encodeAllocChoice(/** @type {any} */ (alloc.value)));
 
-    return { total, left, attrs, add, sub, confirm, store };
+    return { total, left, attrs, add, sub, reset, auto, confirm, store };
   },
   template: /* html */ `
   <div>
@@ -182,7 +252,11 @@ export const AllocatePanel = defineComponent({
       <p>{{ store.prompt?.body }}</p>
     </div>
 
-    <div class="points-left">剩餘 {{ left }} 點</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span class="points-left" style="margin:0">剩餘 {{ left }} 點</span>
+      <button class="btn-ghost" style="margin-left:auto;padding:8px 12px" @click="auto">自動配置</button>
+      <button class="btn-ghost" style="padding:8px 12px" @click="reset" :disabled="left === total">清除</button>
+    </div>
 
     <div v-for="a in attrs" :key="a.key" class="alloc-row" style="flex-wrap:wrap">
       <span class="alloc-name">{{ a.label }}</span>

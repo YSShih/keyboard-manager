@@ -47,6 +47,8 @@ export const store = reactive({
   runsThem: 0,
 
   speedId: /** @type {string} */ ('normal'),
+  /** 上一場選的跑壘方針。賽前調度沿用，避免每場都要重選。 */
+  lastStance: /** @type {'aggressive'|'balanced'|'conservative'} */ ('balanced'),
   draining: false,
   shareString: '',
   /** @type {{id:string,title:string,text:string}|null} */

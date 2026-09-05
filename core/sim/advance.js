@@ -14,9 +14,10 @@
  * @param {number} outs 目前出局數
  * @param {number} runnerSpeed 跑者平均速度 0..99（影響雙殺與多推進）
  * @param {Rng} rng
+ * @param {{advance:number, thrownOut:number}} [stance] 戰術傾向；預設為平衡
  * @returns {{bases: Bases, runs: number, outsAdded: number, note: string}}
  */
-export function advanceRunners(bases, outcome, outs, runnerSpeed, rng) {
+export function advanceRunners(bases, outcome, outs, runnerSpeed, rng, stance = { advance: 0, thrownOut: 0 }) {
   const [b1, b2, b3] = bases;
   /** @type {Bases} */
   let nb = [false, false, false];
@@ -25,6 +26,23 @@ export function advanceRunners(bases, outcome, outs, runnerSpeed, rng) {
   let note = '';
 
   const speedBonus = (runnerSpeed - 50) / 200; // ±0.25
+
+  /**
+   * 嘗試多推進一個壘包。積極的跑法成功率較高，但失敗時可能在壘間被觸殺 ——
+   * 那個代價才是「戰術傾向」成為取捨而不是免費加成的原因。
+   *
+   * 三出局之後這個打席就結束了，不可以再製造出局數。
+   * （初版沒有這個判斷，一支安打上兩個跑者同時被觸殺就會讓出局數變成 4。）
+   *
+   * @param {number} base 基礎成功率
+   * @returns {'safe'|'held'|'out'}
+   */
+  const tryExtra = (base) => {
+    if (rng.bool(base + speedBonus + stance.advance)) return 'safe';
+    if (outs + outsAdded >= 2) return 'held';
+    const risk = 0.12 + stance.thrownOut;
+    return risk > 0 && rng.bool(risk) ? 'out' : 'held';
+  };
 
   switch (outcome) {
     case 'K':
@@ -85,11 +103,15 @@ export function advanceRunners(bases, outcome, outs, runnerSpeed, rng) {
       nb = [true, false, false];
       if (b3) runs += 1;
       if (b2) {
-        if (rng.bool(0.55 + speedBonus)) runs += 1;
+        const r = tryExtra(0.55);
+        if (r === 'safe') runs += 1;
+        else if (r === 'out') { outsAdded += 1; note = '跑者在本壘被觸殺'; }
         else nb[2] = true;
       }
       if (b1) {
-        if (rng.bool(0.28 + speedBonus)) nb[2] = true;
+        const r = tryExtra(0.28);
+        if (r === 'safe') nb[2] = true;
+        else if (r === 'out') { outsAdded += 1; note = note || '跑者在三壘被觸殺'; }
         else nb[1] = true;
       }
       break;
@@ -100,7 +122,9 @@ export function advanceRunners(bases, outcome, outs, runnerSpeed, rng) {
       if (b3) runs += 1;
       if (b2) runs += 1;
       if (b1) {
-        if (rng.bool(0.45 + speedBonus)) runs += 1;
+        const r = tryExtra(0.45);
+        if (r === 'safe') runs += 1;
+        else if (r === 'out') { outsAdded += 1; note = '跑者在本壘被觸殺'; }
         else nb[2] = true;
       }
       break;
@@ -121,6 +145,33 @@ export function advanceRunners(bases, outcome, outs, runnerSpeed, rng) {
   }
 
   return { bases: nb, runs, outsAdded, note };
+}
+
+/**
+ * 盜壘結果。成功推進一個壘包，失敗則跑者出局。
+ * @param {Bases} bases
+ * @param {boolean} success
+ * @returns {{bases: Bases, outsAdded: number, note: string}}
+ */
+export function applySteal(bases, success) {
+  const [b1, b2, b3] = bases;
+  if (b1 && !b2) {
+    return success
+      ? { bases: [false, true, b3], outsAdded: 0, note: '盜上二壘成功' }
+      : { bases: [false, false, b3], outsAdded: 1, note: '盜壘失敗，跑者出局' };
+  }
+  if (b2 && !b3) {
+    return success
+      ? { bases: [b1, false, true], outsAdded: 0, note: '盜上三壘成功' }
+      : { bases: [b1, false, false], outsAdded: 1, note: '盜壘失敗，跑者出局' };
+  }
+  if (b3) {
+    // 盜本壘。極少見，但成功的話是整場最好看的一球。
+    return success
+      ? { bases: [b1, b2, false], outsAdded: 0, note: '盜本壘成功' }
+      : { bases: [b1, b2, false], outsAdded: 1, note: '盜本壘失敗，跑者出局' };
+  }
+  return { bases: [b1, b2, b3], outsAdded: 0, note: '跑者按兵不動' };
 }
 
 /**

@@ -32,6 +32,10 @@ function canonical(v) {
  * 要有意更新時：跑 `node tools/golden.js` 產生新的區塊貼上來，並在 commit 訊息裡說明原因。
  *
  * 更新紀錄：
+ * - 2026-09-05 遊玩機制調整後更新。變動包含：每場比賽新增賽前調度（選先發、
+ *   定跑壘方針）、跑壘方針實際影響推進與被觸殺機率、新增盜壘動作、
+ *   補上兩張寬觸發決策模板（原本 11.6% 的比賽零決策）、每場賽後即時給點並分配、
+ *   傷病機率只套用在實際上場的球員（原本連板凳都算，一屆傷 11 人）。
  * - 2026-09-05 修正比賽規則後更新。變動包含：再見安打（原本九局下超前後還會繼續打完
  *   半局）、延長賽突破僵局制（原本 2% 的比賽以平手收場並被判為敗）、依角色分開的
  *   換投門檻（原本後援也被留到破百球，整屆只用得到一個後援）、傷兵不得出賽、
@@ -41,22 +45,22 @@ const GOLDEN = [
   {
     seed: 11111,
     seedCode: '0800-002P-SYM',
-    ending: 'fired',
-    record: 'CZEW10-2 CHNL6-7 AUSL6-7 NEDL3-4 KORL1-5',
-    approval: 0,
+    ending: 'ticket',
+    record: 'CZEW8-2 CHNW6-4 AUSL7-10 NEDW6-4 KORL1-5 MEXW2-1 PURW10-7 USAW8-5 JPNW9-8 VENL3-5',
+    approval: 86,
   },
   {
     seed: 20260905,
     seedCode: '0800-4TJG-AFH',
     ending: 'early_out',
-    record: 'CZEL1-4 CHNL0-1 AUSW7-4 NEDL2-6 KORW3-2 MEXL3-4 PURL7-10',
+    record: 'CZEL1-3 CHNW3-2 AUSW6-4 NEDL3-4 KORW4-3 MEXL3-5 PURL10-14',
     approval: 26,
   },
   {
     seed: 777777,
     seedCode: '0800-05XW-CDT',
     ending: 'so_close',
-    record: 'CZEW15-4 CHNW9-8 AUSL1-5 NEDW8-1 KORL3-7 MEXL3-6 PURW9-8 USAL4-6 JPNL4-5',
+    record: 'CZEW11-4 CHNW9-8 AUSL1-4 NEDW9-1 KORL4-5 MEXL3-6 PURW8-6 USAL5-6 JPNL4-5',
     approval: 34,
   },
 ];

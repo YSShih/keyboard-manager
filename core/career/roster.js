@@ -117,9 +117,10 @@ export function orderLineup(lineup) {
  * @param {Record<PlayerId, Player>} players
  * @param {Roster} roster
  * @param {number} gameIndex
- * @returns {{lineup: Player[], bench: Player[], pitchers: Player[], unavailable: Player[]}}
+ * @param {?PlayerId} [forcedStarterId] 玩家在賽前調度指定的先發；未指定則挑最新鮮的
+ * @returns {{lineup: Player[], bench: Player[], pitchers: Player[], unavailable: Player[], rotationOptions: Player[]}}
  */
-export function gameSquad(players, roster, gameIndex) {
+export function gameSquad(players, roster, gameIndex, forcedStarterId = null) {
   /** @param {readonly PlayerId[]} ids */
   const get = (ids) => ids.map((id) => players[id]).filter(/** @returns {p is Player} */ (p) => !!p);
   /** @param {Player} p */
@@ -146,10 +147,13 @@ export function gameSquad(players, roster, gameIndex) {
   // 實測出現過累積 218 球還被推上場的情況，沒有教練會這樣用。
   const rotation = get(roster.rotation);
   const fitStarters = rotation.filter(healthy);
-  const starter = (fitStarters.length > 0 ? fitStarters : rotation).slice().sort((a, b) => {
+  const byFreshness = (fitStarters.length > 0 ? fitStarters : rotation).slice().sort((a, b) => {
     const d = carryOverPitches(a.condition.workload) - carryOverPitches(b.condition.workload);
     return d !== 0 ? d : (a.id < b.id ? -1 : 1);
-  })[0] ?? null;
+  });
+  // 玩家指定的先發優先；指定的人受傷或不在輪值裡就退回最新鮮的那個。
+  const forced = forcedStarterId ? byFreshness.find((p) => p.id === forcedStarterId) : null;
+  const starter = forced ?? byFreshness[0] ?? null;
 
   const bullpen = get(roster.bullpen).filter(healthy);
 
@@ -158,5 +162,6 @@ export function gameSquad(players, roster, gameIndex) {
     bench: benchPool,
     pitchers: starter ? [starter, ...bullpen] : bullpen,
     unavailable,
+    rotationOptions: byFreshness,
   };
 }

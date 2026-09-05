@@ -26,6 +26,21 @@ export const TUNING = {
     softCapRatio: 0.75,
     softCapPenalty: 0.5,
     startMeters: { publicApproval: 38, assocTrust: 55, playerMorale: 50 },
+    /**
+     * 自動配置時每項能力的「場外」基準權重，會加到決策模板的引用權重上。
+     *
+     * 為什麼要逐項明列而不是給一個統一底數：模板引用次數只反映檯面上的價值。
+     * 體能管理降低全隊投手的疲勞累積與傷病風險、識人決定潛力揭露精度，
+     * 這些作用完全不透過決策模板發生。用統一底數的話，體能管理的目標佔比
+     * 會低於五項平均，而五項起始值相同，於是它永遠拿不到任何點數。
+     */
+    autoAllocateBase: {
+      bullpen: 10,       // 幾乎全部價值都在決策模板裡，已被計入
+      scouting: 25,      // 名單建議品質、潛力顯示精度
+      communication: 10, // 同用兵，主要在模板裡
+      conditioning: 55,  // 疲勞累積速率 + 傷病機率，全隊投手都受影響
+      intel: 20,         // 解鎖帶情報的選項
+    },
   },
 
   /** 打席解算 */
@@ -89,6 +104,18 @@ export const TUNING = {
     pullLimitStaminaSwing: 12,
   },
 
+  /**
+   * 賽前戰術傾向。
+   *
+   * 這必須是取捨而不是免費加成：積極提高多推進一個壘包的機率，
+   * 但推進失敗時有機率在壘間被觸殺。保守反過來 —— 少拿分，也少送出局數。
+   */
+  stance: {
+    aggressive: { advance: 0.14, thrownOut: 0.3 },
+    balanced:   { advance: 0,    thrownOut: 0 },
+    conservative: { advance: -0.14, thrownOut: -0.12 },
+  },
+
   /** 決策點 */
   decision: {
     maxPerGame: 5,
@@ -101,6 +128,13 @@ export const TUNING = {
 
   /** 賽事獎勵 */
   reward: {
+    /**
+     * 每場比賽結束當下就給的點數。
+     * 把成長感攤到每一場，而不是等整屆打完才一次結算 ——
+     * 原本 10 場只在最後給一次，中途完全沒有變強的感覺。
+     */
+    pointsPerWinGame: 2,
+    pointsPerLossGame: 1,
     pointsPerWin: 1,
     /** 教頭能力平均值每高於 50 共 25 點，額外加成比例（「能力越高收穫越多」） */
     abilityBonusRatio: 0.35,
@@ -108,8 +142,12 @@ export const TUNING = {
 
   /** 受傷 */
   injury: {
-    /** 每場比賽的基礎受傷機率 */
-    perGameBase: 0.04,
+    /**
+     * 每場比賽的基礎受傷機率。
+     * 只套用在「實際有上場」的球員身上 —— 原本是套用在整份 28 人名單，
+     * 連整場坐板凳的人都有 4% 機率受傷，一屆下來傷掉 11 人（40% 的名單）。
+     */
+    perGameBase: 0.022,
     /** 耐用度每高於 50 共 25 點的百分點修正 */
     durability: -3,
     /** 單場球數超過這個門檻後，每多 10 球增加的傷病百分點 */
