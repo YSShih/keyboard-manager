@@ -30,28 +30,34 @@ function canonical(v) {
  * 那不一定是 bug，但一定需要一個人親自判斷要不要接受，而不是預設放行。
  *
  * 要有意更新時：跑 `node tools/golden.js` 產生新的區塊貼上來，並在 commit 訊息裡說明原因。
+ *
+ * 更新紀錄：
+ * - 2026-09-05 修正比賽規則後更新。變動包含：再見安打（原本九局下超前後還會繼續打完
+ *   半局）、延長賽突破僵局制（原本 2% 的比賽以平手收場並被判為敗）、依角色分開的
+ *   換投門檻（原本後援也被留到破百球，整屆只用得到一個後援）、傷兵不得出賽、
+ *   投球負荷跨場次累積。這些都改變了比賽的進行方式，舊種子碼必然跑出不同結果。
  */
 const GOLDEN = [
   {
     seed: 11111,
     seedCode: '0800-002P-SYM',
-    ending: 'so_close',
-    record: 'CZEW6-2 CHNL5-6 AUSW7-6 NEDL2-5 KORL1-5 MEXL1-3 PURW9-6 USAL8-9 JPNL8-13',
-    approval: 34,
+    ending: 'fired',
+    record: 'CZEW10-2 CHNL6-7 AUSL6-7 NEDL3-4 KORL1-5',
+    approval: 0,
   },
   {
     seed: 20260905,
     seedCode: '0800-4TJG-AFH',
     ending: 'early_out',
-    record: 'CZEL1-3 CHNW2-1 AUSW8-4 NEDL4-9 KORL4-10 MEXL3-4 PURL7-10',
-    approval: 18,
+    record: 'CZEL1-4 CHNL0-1 AUSW7-4 NEDL2-6 KORW3-2 MEXL3-4 PURL7-10',
+    approval: 26,
   },
   {
     seed: 777777,
     seedCode: '0800-05XW-CDT',
-    ending: 'early_out',
-    record: 'CZEW14-5 CHNL6-7 AUSL1-5 NEDW9-2 KORL4-7 MEXL3-6 PURL9-11',
-    approval: 18,
+    ending: 'so_close',
+    record: 'CZEW15-4 CHNW9-8 AUSL1-5 NEDW8-1 KORL3-7 MEXL3-6 PURW9-8 USAL4-6 JPNL4-5',
+    approval: 34,
   },
 ];
 

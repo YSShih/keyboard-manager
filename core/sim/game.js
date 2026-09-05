@@ -2,7 +2,7 @@
 import { makeRng } from '../rng/rng.js';
 import { computeOdds, mod, ratingMod } from '../odds/odds.js';
 import { interpolate } from '../content/template.js';
-import { resolvePlateAppearance, OUTCOME_LABEL } from './atBat.js';
+import { resolvePlateAppearance, OUTCOME_LABEL, carryOverPitches, pullLimit } from './atBat.js';
 import { advanceRunners, applyBunt } from './advance.js';
 import { shouldPause } from './leverage.js';
 import { makeOpponentSquad } from './opponent.js';
@@ -33,8 +33,13 @@ import { makeOpponentSquad } from './opponent.js';
  * @property {readonly Tmpl[]} templates
  */
 
-const MAX_INNINGS = 12;
-const AUTO_PULL_PITCHES = 118;
+const MAX_INNINGS = 15;
+/**
+ * 突破僵局制：從這一局開始，每個半局都從「一二壘有人」開打。
+ * 沒有這個規則的話，延長賽會拖到上限然後以平手收場 ——
+ * 而平手在目前的賽制裡會被算成敗，等於用一個永遠倒向玩家的規則決定 2% 的比賽。
+ */
+const TIEBREAK_FROM = 10;
 /** 決策效果的基準幅度。實際幅度 = SWING_BASE × (1 − 成功率)。 */
 const SWING_BASE = 42;
 
@@ -87,7 +92,10 @@ export function* simulateGame(ctx) {
   const lineup = ctx.lineup.slice();
   const bench = ctx.bench.slice();
   const myPitchers = ctx.pitchers.slice();
-  let myPitcherIdx = 0;
+  const closer = myPitchers[myPitchers.length - 1] ?? null;
+  let myPitcher = myPitchers[0] ?? null;
+  /** @type {Set<string>} */
+  const usedPitchers = new Set(myPitcher ? [myPitcher.id] : []);
   let myPitchCount = 0;
 
   // 對方
@@ -99,14 +107,51 @@ export function* simulateGame(ctx) {
   let runsUs = 0;
   let runsThem = 0;
   let pauses = 0;
+  let walkOff = false;
+  let moraleDelta = 0;
+  /** @type {Record<string, number>} */
+  const myPitchCounts = {};
   /** @type {Record<string, number>} */
   const templateUses = {};
   /** @type {string[]} */
   const highlights = [];
   /** @type {Record<string, number>} */
   const contribution = {};
-  /** @type {Set<PlayerId>} */
-  const usedPitchers = new Set();
+
+  /**
+   * 挑下一個上來的投手。
+   *
+   * 原本這裡是 myPitcherIdx++，每場從 0 開始，所以第二任投手永遠是牛棚的第一個人 ——
+   * 一整屆賽事下來只有那一個後援在投，其他人一球都沒投，牛棚深度形同不存在。
+   * 現在改成挑「最新鮮的」（賽會內累積球數最少），並把終結者留到第 8 局以後。
+   *
+   * @param {number} inning
+   * @returns {Player|null}
+   */
+  const pickReliever = (inning) => {
+    const avail = myPitchers.filter((p) => !usedPitchers.has(p.id));
+    if (avail.length === 0) return null;
+    const pool = inning >= 8 || !closer
+      ? avail
+      : (avail.filter((p) => p.id !== closer.id).length > 0
+          ? avail.filter((p) => p.id !== closer.id)
+          : avail);
+    return pool.slice().sort((a, b) => {
+      const d = carryOverPitches(a.condition.workload) - carryOverPitches(b.condition.workload);
+      return d !== 0 ? d : (a.id < b.id ? -1 : 1);
+    })[0] ?? null;
+  };
+
+  /**
+   * 這一分是不是再見分。
+   * 只有在九局下（含延長）、且打擊的一方是主隊、且主隊因此超前時才成立。
+   * @param {number} inning @param {'top'|'bot'} half @param {boolean} weBat
+   * @returns {boolean}
+   */
+  const isWalkOff = (inning, half, weBat) => {
+    if (half !== 'bot' || inning < 9) return false;
+    return weBat ? runsUs > runsThem : runsThem > runsUs;
+  };
 
   /** @param {Player[]} arr @param {number} i */
   const at = (arr, i) => {
@@ -125,15 +170,14 @@ export function* simulateGame(ctx) {
   function* halfInning(weBat, inning, remainingAtBats) {
     let outs = 0;
     /** @type {[boolean, boolean, boolean]} */
-    let bases = [false, false, false];
+    let bases = inning >= TIEBREAK_FROM ? [true, true, false] : [false, false, false];
     const half = /** @type {'top'|'bot'} */ (ctx.weAreHome === weBat ? 'bot' : 'top');
     let ab = 0;
 
     while (outs < 3) {
-      const pitcher = weBat ? at(opp.pitchers, oppPitcherIdx) : at(myPitchers, myPitcherIdx);
+      const pitcher = weBat ? at(opp.pitchers, oppPitcherIdx) : (myPitcher ?? at(myPitchers, 0));
       const batter = weBat ? at(lineup, myBatIdx) : at(opp.lineup, oppBatIdx);
       const pitchCount = weBat ? oppPitchCount : myPitchCount;
-      if (!weBat) usedPitchers.add(pitcher.id);
 
       /** @type {GameSnapshot} */
       const snap = {
@@ -202,12 +246,16 @@ export function* simulateGame(ctx) {
       // ── 決策的直接後果 ──────────────────────────────────
       if (applied) {
         yield { t: 'SUBSTITUTION', narrative: applied.text };
+        // 決策成敗會影響球員士氣。幅度跟該選項的成功率反向掛鉤，
+        // 跟場中效果用同一套規則：賭得越大，士氣的擺盪也越大。
+        moraleDelta += (applied.success ? 1 : -1) * (applied.swing / 30);
 
         if (applied.action === 'PULL_PITCHER' && !weBat) {
-          if (myPitcherIdx < myPitchers.length - 1) {
-            myPitcherIdx++;
+          const np = pickReliever(inning);
+          if (np) {
+            myPitcher = np;
+            usedPitchers.add(np.id);
             myPitchCount = 0;
-            const np = at(myPitchers, myPitcherIdx);
             yield { t: 'SUBSTITUTION', narrative: `投手換上 ${np.name}。` };
           }
         }
@@ -221,20 +269,23 @@ export function* simulateGame(ctx) {
         if (applied.action === 'IBB' && !weBat) {
           const r = advanceRunners(bases, 'BB', outs, 50, makeRng(ctx.seed, `${abKey}/ibb`));
           bases = r.bases; runsThem += r.runs;
+          if (r.runs > 0 && isWalkOff(inning, half, weBat)) walkOff = true;
           myPitchCount += 4;
           oppBatIdx++;
           ab++;
           yield { t: 'PLAY', narrative: `故意四壞，${batter.name} 上一壘。`, snapshot: { ...snap, bases }, outcome: 'BB', runs: r.runs };
+          if (walkOff) break;
           continue;
         }
         if (applied.action === 'BUNT' && weBat) {
           const r = applyBunt(bases, applied.success);
           bases = r.bases; runsUs += r.runs; outs += r.outsAdded;
+          if (r.runs > 0 && isWalkOff(inning, half, weBat)) walkOff = true;
           oppPitchCount += 2;
           myBatIdx++;
           ab++;
           yield { t: 'PLAY', narrative: applied.text, snapshot: { ...snap, bases, outs }, outcome: 'OUT_G', runs: r.runs };
-          if (outs >= 3) break;
+          if (outs >= 3 || walkOff) break;
           continue;
         }
       }
@@ -268,7 +319,12 @@ export function* simulateGame(ctx) {
 
       const pitches = 3 + (pa.outcome === 'K' ? 2 : 0) + (pa.outcome === 'BB' ? 3 : 0)
         + makeRng(ctx.seed, `${abKey}/pitches`).int(0, 4);
-      if (weBat) oppPitchCount += pitches; else myPitchCount += pitches;
+      if (weBat) {
+        oppPitchCount += pitches;
+      } else {
+        myPitchCount += pitches;
+        myPitchCounts[pitcher.id] = (myPitchCounts[pitcher.id] ?? 0) + pitches;
+      }
 
       const runnerSpeed = weBat
         ? lineup.reduce((s, p) => s + p.ratings.bat.speed, 0) / lineup.length
@@ -277,6 +333,7 @@ export function* simulateGame(ctx) {
       bases = adv.bases;
       outs += adv.outsAdded;
       if (weBat) runsUs += adv.runs; else runsThem += adv.runs;
+      if (adv.runs > 0 && isWalkOff(inning, half, weBat)) walkOff = true;
 
       if (weBat && adv.runs > 0) contribution[batter.id] = (contribution[batter.id] ?? 0) + adv.runs;
       if (weBat && ['1B', '2B', '3B', 'HR'].includes(pa.outcome)) {
@@ -302,14 +359,25 @@ export function* simulateGame(ctx) {
 
       if (weBat) myBatIdx++; else oppBatIdx++;
       ab++;
+      // 再見分：主隊在九局下（含延長）超前的瞬間比賽就結束，不再打完這個半局。
+      if (walkOff) {
+        yield { t: 'SUBSTITUTION', narrative: '再見分！比賽在這裡結束。' };
+        break;
+      }
 
       // 我方投手爆量自動換投（沒問玩家，因為這已經不是決策而是常識）
-      if (!weBat && myPitchCount >= AUTO_PULL_PITCHES && myPitcherIdx < myPitchers.length - 1) {
-        myPitcherIdx++;
-        myPitchCount = 0;
-        yield { t: 'SUBSTITUTION', narrative: `${at(myPitchers, myPitcherIdx).name} 接替登板。` };
+      if (!weBat && myPitcher && myPitchCount >= pullLimit(myPitcher)) {
+        const np = pickReliever(inning);
+        if (np) {
+          myPitcher = np;
+          usedPitchers.add(np.id);
+          myPitchCount = 0;
+          yield { t: 'SUBSTITUTION', narrative: `${np.name} 接替登板。` };
+        }
       }
-      if (weBat && oppPitchCount >= AUTO_PULL_PITCHES && oppPitcherIdx < opp.pitchers.length - 1) {
+      // 對手也依同一套角色門檻換投，否則對方的後援會被留到破百球。
+      const oppCurrent = at(opp.pitchers, oppPitcherIdx);
+      if (weBat && oppPitchCount >= pullLimit(oppCurrent) && oppPitcherIdx < opp.pitchers.length - 1) {
         oppPitcherIdx++;
         oppPitchCount = 0;
       }
@@ -329,10 +397,11 @@ export function* simulateGame(ctx) {
 
     // 客隊先攻
     yield* halfInning(!ctx.weAreHome, inning, remaining);
-    // 提前結束：主隊在 9 局後領先，客隊打完就結束
+    // 提前結束：主隊在 9 局後領先，客隊打完就結束（主隊不必再進攻）
     if (inning >= 9 && ((ctx.weAreHome && runsUs > runsThem) || (!ctx.weAreHome && runsThem > runsUs))) break;
 
     yield* halfInning(ctx.weAreHome, inning, remaining);
+    if (walkOff) break;
 
     // 提前勝利（10 分差、7 局後）
     if (inning >= 7 && Math.abs(runsUs - runsThem) >= 10) break;
@@ -358,6 +427,10 @@ export function* simulateGame(ctx) {
     win,
     highlights: highlights.slice(0, 4),
     mvp,
+    // 帶出去給賽後處理用：傷病風險要跟球數掛鉤，跨場次疲勞也要靠它累積。
+    // 沒有這些，「續投王牌會提高傷病風險」「士氣上升」就只是面板上的空話。
+    pitchCounts: myPitchCounts,
+    moraleDelta: Math.round(moraleDelta * 10) / 10,
   };
   yield { t: 'GAME_END', result };
   return result;

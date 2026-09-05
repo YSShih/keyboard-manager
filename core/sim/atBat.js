@@ -43,8 +43,29 @@ function pts(rating, weight) {
 }
 
 /**
+ * 賽會內累積下來、還沒被休息消化掉的球數。
+ * @param {import('../domain/types.js').Workload} w
+ * @returns {number}
+ */
+export function carryOverPitches(w) {
+  // pitchesInEvent 已經在賽後處理時被休息消化過了，這裡只做權重換算。
+  return Math.max(0, w.pitchesInEvent) * TUNING.fatigue.carryOverWeight;
+}
+
+/**
+ * 這名投手該在幾球左右換下來。先發與後援的合理用量差很多。
+ * @param {import('../domain/types.js').Player} p
+ * @returns {number}
+ */
+export function pullLimit(p) {
+  const f = TUNING.fatigue;
+  const base = p.primary === 'SP' ? f.pullLimitStarter : f.pullLimitReliever;
+  return Math.round(base + ((p.ratings.pit.stamina - 50) / 25) * f.pullLimitStaminaSwing);
+}
+
+/**
  * 投手疲勞造成的能力衰減。
- * @param {number} pitchCount
+ * @param {number} pitchCount 本場球數（呼叫端可加上跨場次累積）
  * @param {number} stamina
  * @param {number} conditioning 教頭體能管理
  * @returns {{penalty:number, label:string}}
@@ -93,7 +114,9 @@ export function resolvePlateAppearance(input, rng) {
   const bat = batter.ratings.bat;
   const pit = pitcher.ratings.pit;
 
-  const fat = fatiguePenalty(pitchCount, pit.stamina, coach.conditioning);
+  // 本場球數 ＋ 賽會內還沒消化掉的累積。連續出賽的牛棚投手會明顯變差。
+  const carry = carryOverPitches(pitcher.condition.workload);
+  const fat = fatiguePenalty(pitchCount + carry, pit.stamina, coach.conditioning);
   // 疲勞直接折損控球與球質，這是「換投時機」這個決策存在的理由。
   const control = clamp(pit.control - fat.penalty, 5, 99);
   const stuff = clamp(pit.stuff - fat.penalty * 0.7, 5, 99);
@@ -130,7 +153,12 @@ export function resolvePlateAppearance(input, rng) {
 
   /** @type {{label:string, detail:string}[]} */
   const reasons = [];
-  if (fat.penalty > 3) reasons.push({ label: fat.label, detail: `控球 −${fat.penalty.toFixed(0)}` });
+  if (fat.penalty > 3) {
+    reasons.push({
+      label: carry > 5 ? `${fat.label}（含賽會累積 ${carry.toFixed(0)}）` : fat.label,
+      detail: `控球 −${fat.penalty.toFixed(0)}`,
+    });
+  }
   if (Math.abs(oppPts) > 2) {
     reasons.push({ label: '對手整體實力', detail: `${oppPts > 0 ? '+' : ''}${oppPts.toFixed(0)}%` });
   }

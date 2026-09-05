@@ -37,7 +37,7 @@ python3 -m http.server 8080
 ```bash
 nvm use
 npm install        # 只裝開發工具（TypeScript、Vue 的型別），遊戲本身不需要
-npm test           # 57 個測試，含決定論與 golden 種子
+npm test           # 67 個測試，含決定論、golden 種子與棒球規則
 npm run typecheck  # JSDoc 型別檢查，永不產出檔案
 npm run lint:content   # 內容靜態檢查（含真實球員姓名黑名單）
 ```

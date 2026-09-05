@@ -185,6 +185,8 @@
  * @property {boolean} win
  * @property {readonly string[]} highlights
  * @property {?PlayerId} mvp
+ * @property {Record<string, number>} pitchCounts 我方每位投手本場的球數
+ * @property {number} moraleDelta 場中決策累積的士氣變化
  */
 
 /**

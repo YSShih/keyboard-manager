@@ -1,6 +1,6 @@
 // @ts-check
 import { makeRng } from '../rng/rng.js';
-import { clamp } from '../odds/odds.js';
+import { clamp, computeOdds } from '../odds/odds.js';
 import { encodeSeed, SEED_CODE_VERSION } from '../rng/seedCode.js';
 import { generatePool, overall } from './generate.js';
 import { suggestRoster, gameSquad } from './roster.js';
@@ -356,30 +356,73 @@ function applyPostGame(st, result, gameIndex) {
   /** @type {Record<PlayerId, Player>} */
   const players = { ...st.players };
   const inj = TUNING.injury;
+  const conditioning = st.coach.attrs.conditioning;
 
   for (const id of st.poolOrder) {
     const p = players[id];
     if (!p) continue;
-    const inRoster = st.roster?.members.includes(id) ?? false;
-    if (!inRoster) continue;
+    if (!(st.roster?.members.includes(id) ?? false)) continue;
 
+    const threw = result.pitchCounts[id] ?? 0;
     let condition = { ...p.condition };
+
+    // ── 投球負荷：有投就累積、沒投就休息 ──────────────────
+    // 這一段是「牛棚保留戰力」這句話能不能算數的地方。
+    // 沒有它，不用牛棚就沒有任何好處，那個選項說明就是謊話。
+    condition.workload = threw > 0
+      ? {
+          pitchesThisGame: threw,
+          pitchesInEvent: condition.workload.pitchesInEvent + threw,
+          daysRest: 0,
+        }
+      : {
+          pitchesThisGame: 0,
+          // 休息是「消化掉累積球數」，不是拿天數去抵扣。
+          // 用天數抵扣的話 pitchesInEvent 只會累加不會減少，
+          // 而 daysRest 每次登板就歸零，累積量會無上限成長把投手拖垮（實測到 445 球）。
+          pitchesInEvent: Math.max(0, condition.workload.pitchesInEvent - TUNING.fatigue.restRecoveryPitches),
+          daysRest: condition.workload.daysRest + 1,
+        };
+
+    // ── 傷病 ────────────────────────────────────────────────
     if (condition.injury) {
       const gamesOut = condition.injury.gamesOut - 1;
       condition.injury = gamesOut <= 0 ? null : { ...condition.injury, gamesOut };
     } else {
-      const conditioning = st.coach.attrs.conditioning;
-      const p0 = inj.perGameBase
-        * (1 + ((p.growth.durability - 50) / 25) * (inj.durability / 100))
+      // 基礎機率 → 耐用度修正 → 體能管理修正 → 用量超載修正。
+      // 最後一項讓「續投王牌會提高傷病風險」從面板上的一句話變成真的。
+      let pct = inj.perGameBase * 100
+        * (1 - ((p.growth.durability - 50) / 25) * (inj.durability / -100))
         * (1 - ((conditioning - 50) / 25) * 0.2);
-      if (rng.bool(Math.max(0.005, p0))) {
-        condition.injury = { code: 'STRAIN', gamesOut: rng.int(1, 4), severity: 1 };
+      if (threw > inj.overworkThreshold) {
+        pct += ((threw - inj.overworkThreshold) / 10) * inj.overworkPerTenPitches;
+      }
+      const odds = computeOdds(clamp(pct / 100, 0.004, 0.6), []);
+      if (rng.bool(odds.final)) {
+        const severity = threw > 105 ? 2 : 1;
+        condition.injury = {
+          code: threw > 0 ? 'ARM' : 'STRAIN',
+          gamesOut: rng.int(1, 3 + severity),
+          severity: /** @type {1|2|3} */ (severity),
+        };
       }
     }
+
     condition.form = clamp(condition.form + rng.int(-2, 3) + (result.win ? 1 : -1), -10, 10);
     players[id] = { ...p, condition };
   }
-  return { ...st, players };
+
+  // 決策帶來的士氣變化。之前「士氣上升」這個 preview 完全沒有對應的實作。
+  const morale = Math.round(clamp(
+    st.coach.meters.playerMorale + (result.moraleDelta ?? 0) + (result.win ? 1 : -1),
+    0, 100,
+  ));
+
+  return {
+    ...st,
+    players,
+    coach: { ...st.coach, meters: { ...st.coach.meters, playerMorale: morale } },
+  };
 }
 
 /**

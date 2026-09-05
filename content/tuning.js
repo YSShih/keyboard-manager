@@ -70,6 +70,23 @@ export const TUNING = {
     staminaShift: 8,
     /** 體能管理每高於 50 共 25 點，疲勞累積速率的乘數修正 */
     conditioningRelief: 0.18,
+    /**
+     * 跨場次疲勞。沒有這一段的話，先發投手上一場投 110 球，下一場照樣是全新的 ——
+     * 而且「牛棚保留戰力」這種選項說明會變成謊話，因為不用牛棚根本沒有任何好處。
+     */
+    restRecoveryPitches: 32,  // 每休一場能消化掉的累積球數
+    carryOverWeight: 0.5,     // 未消化的累積球數，有多少比例算進本場的有效球數
+
+    /**
+     * 自動換投門檻，依角色分開。
+     *
+     * 原本是一個 118 的統一上限，結果後援投手也被留到破百球（真實後援投 15–30 球），
+     * 一場只用得到 2 個投手，終結者整屆賽事一球沒投。
+     * 實際門檻 = base + ((續航 − 50) / 25) × staminaSwing
+     */
+    pullLimitStarter: 92,
+    pullLimitReliever: 26,
+    pullLimitStaminaSwing: 12,
   },
 
   /** 決策點 */
@@ -95,7 +112,8 @@ export const TUNING = {
     perGameBase: 0.04,
     /** 耐用度每高於 50 共 25 點的百分點修正 */
     durability: -3,
-    /** 單場球數超過門檻後，每 10 球增加的百分點 */
+    /** 單場球數超過這個門檻後，每多 10 球增加的傷病百分點 */
+    overworkThreshold: 70,
     overworkPerTenPitches: 2.5,
   },
 };

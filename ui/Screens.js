@@ -1,5 +1,5 @@
 // @ts-check
-import { defineComponent, computed, ref } from 'vue';
+import { defineComponent, computed, ref, onMounted } from 'vue';
 import { store, start, reset, randomSeedCode, currentSeedCode, decisionCount } from '../app/store.js';
 import { PREMIER12_2027, OLYMPIC_BERTH_RULE } from '../content/v1/tournaments.js';
 
@@ -7,6 +7,10 @@ export const TitleScreen = defineComponent({
   name: 'TitleScreen',
   setup() {
     const roll = () => { store.seedInput = randomSeedCode(); };
+    // 預設就顯示一組種子碼，而不是留白。
+    // 空白輸入框只會讓人以為那是選填欄位，種子碼是這個遊戲的社群機制核心，
+    // 應該一開始就看得到、複製得走。
+    onMounted(() => { if (!store.seedInput.trim()) roll(); });
     return { store, start, roll, def: PREMIER12_2027, rule: OLYMPIC_BERTH_RULE };
   },
   template: /* html */ `
@@ -33,12 +37,12 @@ export const TitleScreen = defineComponent({
         <label for="seed">世界種子</label>
         <div class="field-row">
           <input id="seed" type="text" v-model="store.seedInput"
-                 placeholder="留空隨機　或貼上朋友的種子碼" @keyup.enter="start()">
+                 placeholder="貼上朋友的種子碼" @keyup.enter="start()">
           <button class="btn-ghost" @click="roll">換一個</button>
         </div>
       </div>
 
-      <p class="hint">相同種子＋相同選擇＝完全相同的一段人生。也可以直接打一句話當種子。</p>
+      <p class="hint">相同種子＋相同選擇＝完全相同的一段人生。可以貼朋友的種子碼，也可以直接打一句話當種子。</p>
       <p class="err" v-if="store.error">{{ store.error }}</p>
 
       <button class="btn-primary" @click="start()">接下中華隊　▸</button>

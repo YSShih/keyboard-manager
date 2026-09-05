@@ -1,6 +1,7 @@
 // @ts-check
 import { overall } from './generate.js';
 import { TUNING } from '../../content/tuning.js';
+import { carryOverPitches } from '../sim/atBat.js';
 
 /** @typedef {import('../domain/types.js').Player} Player */
 /** @typedef {import('../domain/types.js').PlayerId} PlayerId */
@@ -108,25 +109,54 @@ export function orderLineup(lineup) {
 }
 
 /**
- * 從名單取出比賽用的陣容。
+ * 從名單取出這一場實際能上的陣容。
+ *
+ * 傷兵必須被換掉。之前這裡直接回傳 roster.lineup，導致第 3 場受傷的球員
+ * 第 4 到 9 場照樣先發 —— 傷病系統擲了骰、存了狀態，然後什麼都沒發生。
+ *
  * @param {Record<PlayerId, Player>} players
  * @param {Roster} roster
  * @param {number} gameIndex
- * @returns {{lineup: Player[], bench: Player[], pitchers: Player[]}}
+ * @returns {{lineup: Player[], bench: Player[], pitchers: Player[], unavailable: Player[]}}
  */
 export function gameSquad(players, roster, gameIndex) {
   /** @param {readonly PlayerId[]} ids */
   const get = (ids) => ids.map((id) => players[id]).filter(/** @returns {p is Player} */ (p) => !!p);
-  const lineup = get(roster.lineup);
-  const rotation = get(roster.rotation);
-  const bullpen = get(roster.bullpen);
-  const starter = rotation[gameIndex % Math.max(1, rotation.length)];
+  /** @param {Player} p */
+  const healthy = (p) => !p.condition.injury;
+
   const benchIds = roster.members.filter(
     (id) => !roster.lineup.includes(id) && !roster.rotation.includes(id) && !roster.bullpen.includes(id),
   );
+  const benchPool = get(benchIds).filter(healthy);
+  const unavailable = get(roster.members).filter((p) => !healthy(p));
+
+  // 打線：傷兵由板凳遞補。板凳真的空了才讓他帶傷上場 ——
+  // 國際賽名單是固定的，湊不出九個人不是一個合法狀態。
+  /** @type {Player[]} */
+  const lineup = [];
+  for (const p of get(roster.lineup)) {
+    if (healthy(p)) { lineup.push(p); continue; }
+    const sub = benchPool.shift();
+    lineup.push(sub ?? p);
+  }
+
+  // 先發：健康的人裡挑最新鮮的（賽會內累積球數最少）。
+  // 用「輪值順序跳過傷兵」的話，一旦有人受傷就會變成同一個人連續兩場先發 ——
+  // 實測出現過累積 218 球還被推上場的情況，沒有教練會這樣用。
+  const rotation = get(roster.rotation);
+  const fitStarters = rotation.filter(healthy);
+  const starter = (fitStarters.length > 0 ? fitStarters : rotation).slice().sort((a, b) => {
+    const d = carryOverPitches(a.condition.workload) - carryOverPitches(b.condition.workload);
+    return d !== 0 ? d : (a.id < b.id ? -1 : 1);
+  })[0] ?? null;
+
+  const bullpen = get(roster.bullpen).filter(healthy);
+
   return {
     lineup,
-    bench: get(benchIds),
+    bench: benchPool,
     pitchers: starter ? [starter, ...bullpen] : bullpen,
+    unavailable,
   };
 }

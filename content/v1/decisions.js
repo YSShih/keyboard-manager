@@ -159,7 +159,7 @@ export const DECISION_TEMPLATES = [
         id: 'stay',
         label: '相信原打者',
         baseRate: 0.45,
-        preview: ['成功：他自己解決，板凳完全保留', '失敗：打不出來，事後被問為什麼不換'],
+        preview: ['成功：他自己解決，代打留著應付後面的局面', '失敗：打不出來，事後被問為什麼不換'],
         action: 'STAY',
         successText: '{{batter}} 沒有辜負你，一支扎實的安打。',
         failText: '{{batter}} 三球出局，你在休息區看著板凳上那個沒被叫上場的人。',
