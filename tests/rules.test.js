@@ -90,8 +90,9 @@ test('主隊在九局上結束時已領先，就不會再打九局下', () => {
 
 test('換投門檻依角色分開：先發撐得比後援久', () => {
   const { players, poolOrder } = generatePool(4242);
-  const sp = poolOrder.map((id) => players[id]).find((p) => p.primary === 'SP');
-  const rp = poolOrder.map((id) => players[id]).find((p) => p.primary === 'RP');
+  const all = poolOrder.map((id) => players[id]).filter(/** @returns {p is import('../core/domain/types.js').Player} */ (p) => !!p);
+  const sp = all.find((p) => p.primary === 'SP');
+  const rp = all.find((p) => p.primary === 'RP');
   assert.ok(sp && rp);
   assert.ok(pullLimit(sp) > 70, `先發門檻 ${pullLimit(sp)} 太低`);
   assert.ok(pullLimit(rp) < 45, `後援門檻 ${pullLimit(rp)} 太高，後援不該投到這麼多球`);
@@ -129,7 +130,9 @@ test('一整屆賽事下來，牛棚的每個人都有機會登板', () => {
 test('傷兵不會出現在先發打線或牛棚', () => {
   const { players, poolOrder } = generatePool(555);
   const roster = suggestRoster(players, poolOrder);
-  const hurtIds = [roster.lineup[2], roster.rotation[0], roster.bullpen[0]].filter(Boolean);
+  const hurtIds = /** @type {import('../core/domain/types.js').PlayerId[]} */ (
+    [roster.lineup[2], roster.rotation[0], roster.bullpen[0]].filter(Boolean)
+  );
   /** @type {any} */
   const injured = { ...players };
   for (const id of hurtIds) {
@@ -151,18 +154,18 @@ test('投球負荷會累積，也會因為休息而消化掉', () => {
   const st0 = newCareer(50003, '測試教頭');
   const { state, events } = runCareerHeadless(st0, makeCareerPolicy(POLICY_GREEDY));
   const pitcherIds = [...(state.roster?.rotation ?? []), ...(state.roster?.bullpen ?? [])];
-  const loads = pitcherIds.map((id) => state.players[id]?.condition.workload.pitchesInEvent ?? 0);
+  const pitchers = pitcherIds
+    .map((id) => state.players[id])
+    .filter(/** @returns {p is import('../core/domain/types.js').Player} */ (p) => !!p);
+  const loads = pitchers.map((p) => p.condition.workload.pitchesInEvent);
 
   assert.ok(loads.some((v) => v > 0), '完全沒有人累積到投球負荷，跨場次疲勞是死的');
   assert.ok(Math.max(...loads) < 400,
     `最大累積 ${Math.max(...loads)} 球，休息沒有在消化負荷`);
 
   // 有投球的人負荷會轉成有效球數加成
-  const worked = pitcherIds
-    .map((id) => state.players[id])
-    .filter((p) => p && p.condition.workload.pitchesInEvent > 60);
-  for (const p of worked) {
-    assert.ok(carryOverPitches(p.condition.workload) > 0, `${p?.name} 的累積沒有換算成疲勞`);
+  for (const p of pitchers.filter((x) => x.condition.workload.pitchesInEvent > 60)) {
+    assert.ok(carryOverPitches(p.condition.workload) > 0, `${p.name} 的累積沒有換算成疲勞`);
   }
   assert.ok(events.length > 0);
 });
