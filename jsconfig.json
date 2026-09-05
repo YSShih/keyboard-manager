@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "noUncheckedIndexedAccess": true,
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "core/**/*.js",
+    "content/**/*.js",
+    "app/**/*.js",
+    "ui/**/*.js",
+    "tools/**/*.js",
+    "tests/**/*.js"
+  ],
+  "exclude": [
+    "vendor/**"
+  ]
+}

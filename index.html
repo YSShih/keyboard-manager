@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>霜民鍵盤總教練 — 你行你上</title>
+<meta name="description" content="中華隊總教練模擬器。2027 台北世界12強，亞洲唯一一張洛杉磯奧運門票。你行你上。">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Serif+TC:wght@400;700;900&display=swap">
+<link rel="stylesheet" href="./styles/main.css">
+
+<!--
+  零建置：沒有 bundler、沒有轉譯步驟。瀏覽器直接載入這些 .js。
+  importmap 讓 `import { ref } from 'vue'` 指到 repo 內 vendor 的檔案，
+  而不是執行期去打 CDN —— CDN 掛掉時遊戲不該整個開不起來。
+-->
+<script type="importmap">
+{
+  "imports": {
+    "vue": "./vendor/vue.esm-browser.prod.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<script type="module" src="./app/main.js"></script>
+<noscript>
+  <p style="padding:40px;font-family:serif">這是一個需要 JavaScript 的遊戲。</p>
+</noscript>
+</body>
+</html>

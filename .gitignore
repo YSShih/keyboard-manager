@@ -1,0 +1,16 @@
+# 開發工具（TypeScript 型別檢查、Vue 型別）。遊戲本身不需要 npm install。
+node_modules/
+
+# macOS / 編輯器
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+
+# 執行期產物
+*.log
+
+# 注意：vendor/ 要進版控。
+# vendor/vue.esm-browser.prod.js 是這個專案零建置的關鍵 ——
+# 沒有它，clone 下來的人必須先跑套件安裝才能打開遊戲，那就違背了整個設計。

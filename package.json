@@ -1,0 +1,19 @@
+{
+  "name": "keyboard-manager",
+  "version": "0.1.0",
+  "description": "霜民鍵盤總教練 — 你行你上。中華隊總教練模擬器。",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "serve": "python3 -m http.server 8080",
+    "test": "node --test tests/*.test.js",
+    "typecheck": "tsc --noEmit -p jsconfig.json",
+    "balance": "node tools/balance.js",
+    "lint:content": "node tools/contentLint.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "typescript": "^7.0.2",
+    "vue": "^3.5.13"
+  }
+}
