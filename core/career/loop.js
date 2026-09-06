@@ -224,10 +224,24 @@ export function* runCareer(initial) {
     let finalRankLabel = def.stages[0]?.eliminatedRank ?? '';
     let championed = false;
 
+    let prevStageWins = 0;
     stages:
     for (let si = 0; si < def.stages.length; si++) {
       const stage = def.stages[si];
       if (!stage) break;
+
+      // 前一階段贏夠多就跳過這一關（例如奧運分組第一直接進四強）
+      if (stage.skipIfPrevWins !== undefined && si > 0 && prevStageWins >= stage.skipIfPrevWins) {
+        yield {
+          t: 'NARRATIVE',
+          entry: {
+            kind: 'result', tone: 'good', title: `跳過${stage.name}`,
+            text: '小組第一，直接晉級。多出來的一天，全隊休息。', deltas: [],
+          },
+        };
+        continue;
+      }
+
       let stageWins = 0;
 
       for (const code of stage.opponents) {
@@ -321,6 +335,7 @@ export function* runCareer(initial) {
         break stages;
       }
 
+      prevStageWins = stageWins;
       if (si === def.stages.length - 1) {
         championed = true;
         finalRankNum = 1;
@@ -351,7 +366,9 @@ export function* runCareer(initial) {
     const abilityBonus = Math.max(0, Math.round(
       (reward?.points ?? 0) * ((avgAttr - 50) / 25) * TUNING.reward.abilityBonusRatio,
     ));
-    const totalPoints = Math.max(1, (reward?.points ?? 0) + winPoints + abilityBonus);
+    const totalPoints = Math.max(1, Math.round(
+      ((reward?.points ?? 0) + winPoints + abilityBonus) * TUNING.reward.pointsMultiplier,
+    ));
 
     // 奧運門票
     /** @type {string[]} */

@@ -99,14 +99,22 @@ function runGames({ n, opponents, policy, coachAttr }) {
   console.log(`三振率 ${(ks / plays * 100).toFixed(1)}%　四壞率 ${(bbs / plays * 100).toFixed(1)}%　全壘打率 ${(hrs / plays * 100).toFixed(1)}%`);
 
   // ── 護欄 ──
+  //
+  // 只在「起始能力」時檢查勝率區間。用 --coach 拉高能力是刻意要看成長的效果，
+  // 那時候勝率本來就該超出區間 —— 拿同一組期望值去檢查會把正常結果判成失敗。
   /** @type {string[]} */
   const fails = [];
+  const atBaseline = coachAttr === TUNING.coach.startAttr;
   /** @param {string} label @param {boolean} ok @param {string} detail */
   const check = (label, ok, detail) => { if (!ok) fails.push(`${label}：${detail}`); };
   const jp = tally['JPN'], au = tally['AUS'], cz = tally['CZE'];
-  if (jp) check('vs 日本勝率', jp.w / jp.n >= 0.15 && jp.w / jp.n <= 0.42, `${(jp.w / jp.n * 100).toFixed(1)}%（期望 15–42%）`);
-  if (au) check('vs 澳洲勝率', au.w / au.n >= 0.5 && au.w / au.n <= 0.78, `${(au.w / au.n * 100).toFixed(1)}%（期望 50–78%）`);
-  if (cz) check('vs 捷克勝率', cz.w / cz.n >= 0.62 && cz.w / cz.n <= 0.9, `${(cz.w / cz.n * 100).toFixed(1)}%（期望 62–90%）`);
+  if (atBaseline) {
+    if (jp) check('vs 日本勝率', jp.w / jp.n >= 0.15 && jp.w / jp.n <= 0.42, `${(jp.w / jp.n * 100).toFixed(1)}%（期望 15–42%）`);
+    if (au) check('vs 澳洲勝率', au.w / au.n >= 0.5 && au.w / au.n <= 0.78, `${(au.w / au.n * 100).toFixed(1)}%（期望 50–78%）`);
+    if (cz) check('vs 捷克勝率', cz.w / cz.n >= 0.62 && cz.w / cz.n <= 0.9, `${(cz.w / cz.n * 100).toFixed(1)}%（期望 62–90%）`);
+  } else {
+    console.log(`（教頭能力 ${coachAttr} ≠ 起始值 ${TUNING.coach.startAttr}，略過勝率區間檢查）`);
+  }
   check('三振率', ks / plays >= 0.15 && ks / plays <= 0.3, `${(ks / plays * 100).toFixed(1)}%（期望 15–30%）`);
   check('每場決策數', decisions / games >= TUNING.decision.minPerGame - 0.5 && decisions / games <= TUNING.decision.maxPerGame,
     `${(decisions / games).toFixed(2)}（期望 ${TUNING.decision.minPerGame}–${TUNING.decision.maxPerGame}）`);
@@ -181,12 +189,18 @@ function runCareers({ n, policy }) {
   if (missing.length > 0) fails.push(`這些結局一次都沒出現：${missing.join(', ')}`);
   // 「拿下奧運金牌或經典賽冠軍」是這個遊戲的勵志前提。
   // 太高就不值錢，太低則等於不可達 —— 兩邊都要守。
+  // 目標由使用者設定為約 25% —— 這是一個刻意偏「勵志」的調性：
+  // 四年認真經營下來，四分之一的機率能站上頒獎台最高處。
   const crown = rate('double_crown') + rate('olympic_gold') + rate('wbc_champion');
-  if (crown < 0.02) fails.push(`奪冠結局合計 ${(crown * 100).toFixed(1)}%，太低（期望 2–20%）`);
-  if (crown > 0.2) fails.push(`奪冠結局合計 ${(crown * 100).toFixed(1)}%，太高（期望 2–20%）`);
-  if (berths / n < 0.15 || berths / n > 0.7) fails.push(`奧運門票率 ${(berths / n * 100).toFixed(1)}%（期望 15–70%）`);
+  if (crown < 0.18) fails.push(`奪冠結局合計 ${(crown * 100).toFixed(1)}%，太低（目標 18–32%）`);
+  if (crown > 0.32) fails.push(`奪冠結局合計 ${(crown * 100).toFixed(1)}%，太高（目標 18–32%）`);
+  // 門票率跟著奪冠目標一起上調 —— 拿不到門票就沒有奧運可打，
+  // 兩者無法分開設定。
+  if (berths / n < 0.5 || berths / n > 0.92) fails.push(`奧運門票率 ${(berths / n * 100).toFixed(1)}%（期望 50–92%）`);
   const reachedOlympics = (reached['olympics_2028'] ?? 0) / n;
-  if (reachedOlympics < 0.15) fails.push(`只有 ${(reachedOlympics * 100).toFixed(1)}% 的生涯打到奧運（期望 > 15%）`);
+  if (reachedOlympics < 0.5) fails.push(`只有 ${(reachedOlympics * 100).toFixed(1)}% 的生涯打到奧運（期望 > 50%）`);
+  // 「被揃下台」仍然必須碰得到，否則風險就消失了
+  if (rate('fired') < 0.005) fails.push(`被解僱率 ${(rate('fired') * 100).toFixed(1)}%，幾乎不可能發生`);
   if (totalPrompts / n > 90) fails.push(`平均 ${(totalPrompts / n).toFixed(0)} 個提示，節奏太重（期望 <= 90）`);
 
   console.log();

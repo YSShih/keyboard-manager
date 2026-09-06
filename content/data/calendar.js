@@ -252,6 +252,10 @@ export const CALENDAR = [
         id: 'playin', name: '準決賽附加賽', venue: '道奇球場',
         opponents: ['MEX'], minWins: 1,
         eliminatedRank: '第 4 名', eliminatedRankNum: 4,
+        // 分組全勝＝小組第一，直接進四強。這是 LA28 的實際賽制，
+        // 原本讓所有人都打附加賽，等於奧運要連贏四場才有金牌，
+        // 沒有任何容錯，金牌率被壓到 2%。
+        skipIfPrevWins: 2,
       },
       {
         id: 'semi', name: '四強', venue: '道奇球場',

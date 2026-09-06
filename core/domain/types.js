@@ -163,6 +163,8 @@
  * @property {string} eliminatedRank 未晉級時的最終名次標籤
  * @property {number} eliminatedRankNum 未晉級時的名次數字（供門票判定）
  * @property {?ConsolationDef} [consolation] 未晉級時還要打的敗部戰（例如奧運銅牌戰）
+ * @property {number} [skipIfPrevWins] 前一階段贏到這個場數就跳過本階段
+ *   （LA28 分組第一直接進四強，只有二三名才打準決賽附加賽）
  */
 
 /**
