@@ -1,7 +1,7 @@
 // @ts-check
 import { defineComponent, computed, ref, onMounted } from 'vue';
 import { store, start, reset, randomSeedCode, currentSeedCode, decisionCount } from '../app/store.js';
-import { PREMIER12_2027, OLYMPIC_BERTH_RULE } from '../content/data/tournaments.js';
+import { CALENDAR } from '../content/data/calendar.js';
 
 export const TitleScreen = defineComponent({
   name: 'TitleScreen',
@@ -11,20 +11,28 @@ export const TitleScreen = defineComponent({
     // 空白輸入框只會讓人以為那是選填欄位，種子碼是這個遊戲的社群機制核心，
     // 應該一開始就看得到、複製得走。
     onMounted(() => { if (!store.seedInput.trim()) roll(); });
-    return { store, start, roll, def: PREMIER12_2027, rule: OLYMPIC_BERTH_RULE };
+    return { store, start, roll, calendar: CALENDAR };
   },
   template: /* html */ `
   <div class="title-screen">
     <div class="title-card">
-      <div class="title-mark">2027 · WBSC PREMIER12 · TAIPEI → TOKYO</div>
+      <div class="title-mark">2024 → 2028 · TAIPEI · TOKYO · LOS ANGELES</div>
 
       <h1 class="game-title">霜民<span class="frost">鍵盤</span>總教練</h1>
       <p class="slogan">你行你上</p>
 
       <div class="premise">
-        2026 年經典賽，中華隊預賽 2 勝 2 敗，小組未晉級，<strong>最終第 13 名</strong>。總教練下台。<br>
-        現在協會找上你。第一關是 <strong>2027 年台北的世界 12 強</strong>——
-        {{ rule.explain }}
+        2024 年 11 月，中華隊 <strong>4：0 完封日本</strong>，終結對手 27 連勝，
+        拿下隊史第一座國際一級賽事冠軍。總教練在慶功宴上宣布引退。<br><br>
+        一個月後，協會找上你。桌上除了合約，還有一份
+        <strong>2028 洛杉磯奧運</strong>的評估報告。
+      </div>
+
+      <div class="premise" style="border-left-color:var(--amber);margin-top:-14px">
+        <span class="eyebrow" style="display:block;margin-bottom:6px">四年，六場硬仗</span>
+        <span v-for="(t, i) in calendar" :key="t.id" style="display:block;font-size:13.5px">
+          {{ t.year }}　{{ t.name }}<span v-if="t.stake === 'ticket'" style="color:var(--amber)">　·　奧運門票</span><span v-if="t.stake === 'gold'" style="color:var(--frost)">　·　金牌</span>
+        </span>
       </div>
 
       <div class="field">
@@ -54,9 +62,9 @@ export const EndingScreen = defineComponent({
   name: 'EndingScreen',
   setup() {
     const copied = ref('');
-    const results = computed(() => store.state?.tournament?.results ?? []);
-    const wins = computed(() => results.value.filter((r) => r.win).length);
-    const losses = computed(() => results.value.length - wins.value);
+    const history = computed(() => store.state?.history ?? []);
+    const wins = computed(() => history.value.reduce((s, h) => s + h.wins, 0));
+    const losses = computed(() => history.value.reduce((s, h) => s + h.losses, 0));
     const coach = computed(() => store.state?.coach);
 
     /** @param {string} text @param {string} what */
@@ -64,7 +72,7 @@ export const EndingScreen = defineComponent({
       try { await navigator.clipboard.writeText(text); copied.value = what; setTimeout(() => (copied.value = ''), 1800); }
       catch { copied.value = 'fail'; }
     };
-    return { store, reset, results, wins, losses, coach, copy, copied, currentSeedCode, decisionCount };
+    return { store, reset, history, wins, losses, coach, copy, copied, currentSeedCode, decisionCount };
   },
   template: /* html */ `
   <div class="ending-screen">
@@ -73,10 +81,21 @@ export const EndingScreen = defineComponent({
       <h1>{{ store.ending?.title }}</h1>
       <p class="body">{{ store.ending?.text }}</p>
 
+      <div class="section-label">四年回顧</div>
+      <div class="career-table">
+        <div v-for="h in history" :key="h.defId" class="career-row"
+             :class="{ crown: h.rankNum === 1 }">
+          <span class="yr num">{{ h.year }}</span>
+          <span class="nm">{{ h.name }}</span>
+          <span class="rk">{{ h.rankLabel }}</span>
+          <span class="wl num">{{ h.wins }}–{{ h.losses }}</span>
+        </div>
+      </div>
+
       <div class="ending-stats">
-        <div><div class="k">戰績</div><div class="v">{{ wins }}–{{ losses }}</div></div>
+        <div><div class="k">總戰績</div><div class="v">{{ wins }}–{{ losses }}</div></div>
+        <div><div class="k">聲望</div><div class="v">{{ coach?.prestige }}</div></div>
         <div><div class="k">民調</div><div class="v">{{ coach?.meters.publicApproval }}</div></div>
-        <div><div class="k">協會信任</div><div class="v">{{ coach?.meters.assocTrust }}</div></div>
         <div><div class="k">決策次數</div><div class="v">{{ decisionCount() }}</div></div>
       </div>
 

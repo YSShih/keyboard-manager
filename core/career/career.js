@@ -14,12 +14,12 @@
  *
  * 保留這個入口是為了讓既有的 import（UI、存檔、測試、工具）不用全部改寫。
  */
-export { newCareer, runCareer } from './loop.js';
+export { newCareer, runCareer, OLYMPIC_BERTH_RULE } from './loop.js';
 export { COACH_ATTRS, COACH_ATTR_LABEL, COACH_ATTR_DESC, STANCE_LABEL } from './coach.js';
 export {
   encodeRosterChoice, encodeAllocChoice, encodePregameChoice,
-  decodeRosterChoice, decodePregameChoice,
+  decodeRosterChoice, decodePregameChoice, decodeStance,
 } from './choices.js';
 export { applyGrowth, applyAllocation, autoAllocate } from './allocation.js';
-export { applyPostGame, computeMeterDelta } from './postgame.js';
-export { pickEnding } from './endings.js';
+export { applyPostGame } from './postgame.js';
+export { pickEnding, ENDING_IDS } from './endings.js';

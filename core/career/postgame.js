@@ -99,24 +99,3 @@ export function applyPostGame(st, result, gameIndex, played) {
     newInjuries,
   };
 }
-
-/**
- * @param {number} rankNum
- * @param {boolean} gotBerth
- * @param {readonly GameResult[]} results
- * @returns {{publicApproval:number, assocTrust:number, playerMorale:number}}
- */
-export function computeMeterDelta(rankNum, gotBerth, results) {
-  const wins = results.filter((r) => r.win).length;
-  const base = rankNum === 1 ? 34 : rankNum === 2 ? 22 : rankNum === 4 ? 10 : rankNum === 8 ? -6 : -22;
-  const berthBonus = gotBerth ? 18 : -14;
-  const beatBig = results.some((r) => r.win && (r.opponent === 'JPN' || r.opponent === 'KOR')) ? 8 : 0;
-  // 主場開幕循環賽就打不出兩勝是災難級的失敗，代價必須大到足以讓人下台。
-  // 沒有這一項的話「被揃下台」這個結局在數學上根本碰不到（民調最低只會掉到 2）。
-  const disaster = rankNum >= 13 && wins <= 1 ? -14 - (1 - wins) * 10 : 0;
-  return {
-    publicApproval: base + berthBonus + beatBig + disaster,
-    assocTrust: Math.round(base * 0.7) + (gotBerth ? 14 : -10) + Math.round(disaster * 0.8),
-    playerMorale: Math.round(wins * 2.2) + (rankNum <= 4 ? 8 : -4),
-  };
-}

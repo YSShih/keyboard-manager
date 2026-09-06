@@ -24,6 +24,9 @@ export const NATIONS = [
   { code: 'GBR', name: '英國',       strength: 46, region: 'EURO_OCE' },
   { code: 'CHN', name: '中國',       strength: 42, region: 'ASIA' },
   { code: 'NCA', name: '尼加拉瓜',   strength: 48, region: 'AMERICAS' },
+  { code: 'PHI', name: '菲律賓',     strength: 34, region: 'ASIA' },
+  { code: 'HKG', name: '香港',       strength: 30, region: 'ASIA' },
+  { code: 'ESP', name: '西班牙',     strength: 45, region: 'EURO_OCE' },
 ];
 
 /** @type {Map<string, import('../../core/domain/types.js').NationDef>} */

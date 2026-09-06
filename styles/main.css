@@ -485,6 +485,27 @@ input[type=text]::placeholder { color: var(--paper-mute); letter-spacing: .02em;
 .ending-stats .k { font-family: var(--mono); font-size: 9px; letter-spacing: .18em; color: var(--frost-dim); text-transform: uppercase; }
 .ending-stats .v { font-family: var(--mono); font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 3px; }
 
+.career-table {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+.career-row {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 14px;
+}
+.career-row:last-child { border-bottom: 0; }
+.career-row .yr { color: var(--frost-dim); font-size: 12px; min-width: 38px; }
+.career-row .nm { flex: 1; color: var(--paper-dim); }
+.career-row .rk { font-weight: 700; }
+.career-row .wl { color: var(--paper-mute); font-size: 12.5px; min-width: 42px; text-align: right; }
+.career-row.crown { background: color-mix(in srgb, var(--amber) 9%, transparent); }
+.career-row.crown .rk { color: var(--amber); }
+.career-row.crown .nm { color: var(--paper); }
+
 .share-box {
   margin: 22px 0; padding: 16px 18px;
   background: var(--ink-1); border: 1px solid var(--rule); border-radius: 3px;

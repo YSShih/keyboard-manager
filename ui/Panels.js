@@ -99,6 +99,12 @@ export const RosterPanel = defineComponent({
     });
 
     const size = TUNING.pool.rosterSize;
+    const stance = ref(store.lastStance);
+    const STANCES = [
+      { id: 'aggressive', desc: '跑者積極搶進壘包。多得分，也多被觸殺。' },
+      { id: 'balanced', desc: '照一般判斷跑壘。' },
+      { id: 'conservative', desc: '跑者只在有把握時推進。少丟出局數，也少拿分。' },
+    ];
     const isIn = (/** @type {string} */ id) => selected.value.includes(id);
     const toggle = (/** @type {string} */ id) => {
       const cur = selected.value.slice();
@@ -108,9 +114,12 @@ export const RosterPanel = defineComponent({
       picked.value = cur;
     };
     const useSuggested = () => { picked.value = null; };
-    const confirm = () => choose(encodeRosterChoice(/** @type {any} */ (selected.value)));
+    const confirm = () => {
+      store.lastStance = stance.value;
+      choose(encodeRosterChoice(/** @type {any} */ (selected.value), /** @type {any} */ (stance.value)));
+    };
 
-    return { pool, selected, isIn, toggle, useSuggested, confirm, size, overall, store };
+    return { pool, selected, isIn, toggle, useSuggested, confirm, size, overall, store, stance, STANCES, STANCE_LABEL };
   },
   template: /* html */ `
   <div>
@@ -127,6 +136,15 @@ export const RosterPanel = defineComponent({
       </button>
     </div>
 
+    <div class="section-label">全隊跑壘方針</div>
+    <button v-for="s in STANCES" :key="s.id" class="opt"
+            :style="{borderColor: stance === s.id ? 'var(--frost)' : 'var(--rule)'}"
+            @click="stance = s.id">
+      <div class="opt-top"><span class="opt-label">{{ STANCE_LABEL[s.id] }}</span></div>
+      <p class="opt-preview">{{ s.desc }}</p>
+    </button>
+
+    <div class="section-label">球員池（{{ selected.length }} / {{ size }}）</div>
     <div v-for="p in pool" :key="p.id" class="pcard"
          :style="{opacity: isIn(p.id) ? 1 : 0.34, cursor:'pointer', marginBottom:'6px',
                   borderColor: isIn(p.id) ? 'var(--frost-dim)' : 'var(--rule)'}"
@@ -139,63 +157,6 @@ export const RosterPanel = defineComponent({
       </div>
       <div class="sub">{{ p.age }} 歲　{{ p.archetypeLabel }}　<span class="club">{{ p.club }}</span></div>
     </div>
-  </div>`,
-});
-
-/** 賽前調度面板：選先發、定跑壘方針。 */
-export const PregamePanel = defineComponent({
-  name: 'PregamePanel',
-  setup() {
-    const extra = computed(() => store.prompt?.extra ?? null);
-    const starters = computed(() => extra.value?.starters ?? []);
-    /** @type {import('vue').Ref<?string>} */
-    const pickedSp = ref(null);
-    // 記住上次的傾向，這樣每場只要按「確定出戰」就走，不用每場重選。
-    const stance = ref(store.lastStance);
-
-    const chosenSp = computed(() => pickedSp.value ?? starters.value[0]?.id ?? null);
-    const confirm = () => {
-      store.lastStance = stance.value;
-      choose(encodePregameChoice(/** @type {any} */ (chosenSp.value), /** @type {any} */ (stance.value)));
-    };
-    const STANCES = [
-      { id: 'aggressive', desc: '跑者積極搶進壘包。多得分，也多被觸殺。' },
-      { id: 'balanced', desc: '照一般判斷跑壘。' },
-      { id: 'conservative', desc: '跑者只在有把握時推進。少丟出局數，也少拿分。' },
-    ];
-    return { store, extra, starters, pickedSp, chosenSp, stance, confirm, STANCES, STANCE_LABEL };
-  },
-  template: /* html */ `
-  <div>
-    <div class="panel-head">
-      <span class="eyebrow">賽前調度</span>
-      <h2>{{ store.prompt?.title }}</h2>
-      <p>{{ store.prompt?.body }}</p>
-    </div>
-
-    <div class="section-label">先發投手</div>
-    <button v-for="p in starters" :key="p.id" class="opt"
-            :style="{borderColor: chosenSp === p.id ? 'var(--frost)' : 'var(--rule)'}"
-            @click="pickedSp = p.id">
-      <div class="opt-top">
-        <span class="opt-label">{{ p.name }}</span>
-        <span class="opt-rate" style="font-size:16px;color:var(--paper)">{{ p.overall }}</span>
-      </div>
-      <p class="opt-preview">
-        賽會累積 {{ p.load }} 球<span v-if="p.load === 0">　·　完全沒有負荷</span>
-        <span v-else-if="p.load > 90" style="color:var(--crimson)">　·　手臂很沉</span>
-      </p>
-    </button>
-
-    <div class="section-label">跑壘方針</div>
-    <button v-for="s in STANCES" :key="s.id" class="opt"
-            :style="{borderColor: stance === s.id ? 'var(--frost)' : 'var(--rule)'}"
-            @click="stance = s.id">
-      <div class="opt-top"><span class="opt-label">{{ STANCE_LABEL[s.id] }}</span></div>
-      <p class="opt-preview">{{ s.desc }}</p>
-    </button>
-
-    <button class="btn-primary" @click="confirm">確定出戰　▸</button>
   </div>`,
 });
 

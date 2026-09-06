@@ -16,6 +16,8 @@ import { DECISION_TEMPLATES } from '../content/data/decisions.js';
 import { TUNING } from '../content/tuning.js';
 import { newCareer } from '../core/career/career.js';
 import { runCareerHeadless, makeCareerPolicy } from '../core/career/driver.js';
+import { CALENDAR, FLAG_OLYMPIC_BERTH } from '../content/data/calendar.js';
+import { ENDING_IDS } from '../core/career/endings.js';
 
 /** @param {string[]} argv */
 function parseArgs(argv) {
@@ -129,57 +131,63 @@ function runCareers({ n, policy }) {
   /** @type {Record<string, number>} */
   const endings = {};
   /** @type {Record<string, number>} */
-  const exitStage = {};
-  let berths = 0, totalPoints = 0, totalGames = 0, totalDecisions = 0;
-  const approvals = [];
+  const reached = {};
+  let berths = 0, totalPrompts = 0, totalGames = 0;
+  const prestiges = [];
 
   for (let i = 0; i < n; i++) {
     const st0 = newCareer(300000 + i, '教頭');
     const { state, events, decisions } = runCareerHeadless(st0, makeCareerPolicy(policy));
-    const id = state.ending?.id ?? '?';
-    endings[id] = (endings[id] ?? 0) + 1;
-    totalPoints += state.coach.unspentPoints;
-    totalDecisions += decisions.length;
-    approvals.push(state.coach.meters.publicApproval);
-
-    let lastStage = 'opening';
+    endings[state.ending?.id ?? '?'] = (endings[state.ending?.id ?? '?'] ?? 0) + 1;
+    totalPrompts += decisions.length;
+    prestiges.push(state.coach.prestige);
+    if (state.coach.flags.includes(FLAG_OLYMPIC_BERTH)) berths++;
+    /** @type {Set<string>} */
+    const thisCareer = new Set();
     for (const e of events) {
-      if (e.t === 'GAME_START') { lastStage = e.stageId; totalGames++; }
-      if (e.t === 'PHASE' && e.body.includes('取得 2028')) berths++;
+      if (e.t === 'GAME_START') totalGames++;
+      if (e.t === 'DECISION') {
+        const m = /^career\/([a-z0-9_]+)\//.exec(e.prompt.rngKey);
+        if (m?.[1]) thisCareer.add(m[1]);
+      }
     }
-    exitStage[lastStage] = (exitStage[lastStage] ?? 0) + 1;
+    // 每段生涯只計一次，否則同一屆的多個決策會被重複計算
+    for (const id of thisCareer) reached[id] = (reached[id] ?? 0) + 1;
   }
 
-  console.log(`
-${n} 段生涯
-`);
-  console.log('走到的最後階段');
-  console.log('─'.repeat(46));
-  for (const [k, v] of Object.entries(exitStage).sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${k.padEnd(10)} ${String(v).padStart(4)}　${(v / n * 100).toFixed(1).padStart(5)}%  ${'█'.repeat(Math.round(v / n * 30))}`);
+  console.log(`\n${n} 段生涯\n`);
+  console.log('走到的賽事（比例）');
+  console.log('─'.repeat(52));
+  for (const def of CALENDAR) {
+    const v = reached[def.id] ?? 0;
+    console.log(`  ${def.year} ${def.name.slice(0, 12).padEnd(14)} ${String(v).padStart(4)}　${(v / n * 100).toFixed(1).padStart(5)}%  ${'█'.repeat(Math.round(v / n * 26))}`);
   }
   console.log('\n結局分布');
-  console.log('─'.repeat(46));
-  for (const [k, v] of Object.entries(endings).sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${k.padEnd(12)} ${String(v).padStart(4)}　${(v / n * 100).toFixed(1).padStart(5)}%  ${'█'.repeat(Math.round(v / n * 30))}`);
+  console.log('─'.repeat(52));
+  for (const id of ENDING_IDS) {
+    const v = endings[id] ?? 0;
+    console.log(`  ${id.padEnd(16)} ${String(v).padStart(4)}　${(v / n * 100).toFixed(1).padStart(5)}%  ${'█'.repeat(Math.round(v / n * 26))}`);
   }
-  approvals.sort((a, b) => a - b);
-  console.log(`
-奧運門票取得率 ${(berths / n * 100).toFixed(1)}%`);
-  console.log(`平均每段生涯 ${(totalGames / n).toFixed(1)} 場、${(totalDecisions / n).toFixed(1)} 個決策、獲得 ${(totalPoints / n).toFixed(1)} 點`);
-  console.log(`民調中位數 ${approvals[Math.floor(n / 2)]}`);
+  prestiges.sort((a, b) => a - b);
+  console.log(`\n奧運門票取得率 ${(berths / n * 100).toFixed(1)}%`);
+  console.log(`平均每段生涯 ${(totalGames / n).toFixed(1)} 場、${(totalPrompts / n).toFixed(1)} 個提示`);
+  console.log(`聲望 最低/中位/最高 ${prestiges[0]} / ${prestiges[Math.floor(n / 2)]} / ${prestiges[n - 1]}`);
 
   /** @type {string[]} */
   const fails = [];
-  const champRate = (endings['champion'] ?? 0) / n;
-  const earlyOut = (exitStage['opening'] ?? 0) / n;
-  if (champRate > 0.12) fails.push(`冠軍率 ${(champRate * 100).toFixed(1)}%（期望 < 12%）`);
-  if (earlyOut > 0.35) fails.push(`第一關就被淘汰 ${(earlyOut * 100).toFixed(1)}%（期望 < 35%）`);
-  if (berths / n < 0.1 || berths / n > 0.45) fails.push(`奧運門票率 ${(berths / n * 100).toFixed(1)}%（期望 10–45%）`);
-  // 每一種寫得出來的結局都必須真的有人碰得到，否則就是白寫的內容。
-  const ALL_ENDINGS = ['champion', 'ticket', 'so_close', 'early_out', 'fired'];
-  const missing = ALL_ENDINGS.filter((e) => !endings[e]);
-  if (missing.length > 0) fails.push(`這些結局一次都沒出現，可能達不到：${missing.join(', ')}`);
+  const rate = (/** @type {string} */ id) => (endings[id] ?? 0) / n;
+  // 每一個寫得出來的結局都必須真的達得到，否則就是白寫的內容
+  const missing = ENDING_IDS.filter((e) => !endings[e]);
+  if (missing.length > 0) fails.push(`這些結局一次都沒出現：${missing.join(', ')}`);
+  // 「拿下奧運金牌或經典賽冠軍」是這個遊戲的勵志前提。
+  // 太高就不值錢，太低則等於不可達 —— 兩邊都要守。
+  const crown = rate('double_crown') + rate('olympic_gold') + rate('wbc_champion');
+  if (crown < 0.02) fails.push(`奪冠結局合計 ${(crown * 100).toFixed(1)}%，太低（期望 2–20%）`);
+  if (crown > 0.2) fails.push(`奪冠結局合計 ${(crown * 100).toFixed(1)}%，太高（期望 2–20%）`);
+  if (berths / n < 0.15 || berths / n > 0.7) fails.push(`奧運門票率 ${(berths / n * 100).toFixed(1)}%（期望 15–70%）`);
+  const reachedOlympics = (reached['olympics_2028'] ?? 0) / n;
+  if (reachedOlympics < 0.15) fails.push(`只有 ${(reachedOlympics * 100).toFixed(1)}% 的生涯打到奧運（期望 > 15%）`);
+  if (totalPrompts / n > 90) fails.push(`平均 ${(totalPrompts / n).toFixed(0)} 個提示，節奏太重（期望 <= 90）`);
 
   console.log();
   if (fails.length === 0) console.log('✅ 全部護欄通過');

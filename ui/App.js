@@ -3,18 +3,17 @@ import { defineComponent, computed } from 'vue';
 import { store, setSpeed, SPEEDS } from '../app/store.js';
 import { Scorebar } from './Scorebar.js';
 import { Feed } from './Feed.js';
-import { DecisionPanel, RosterPanel, AllocatePanel, PregamePanel } from './Panels.js';
+import { DecisionPanel, RosterPanel, AllocatePanel } from './Panels.js';
 import { TitleScreen, EndingScreen } from './Screens.js';
 
 export const App = defineComponent({
   name: 'App',
-  components: { Scorebar, Feed, DecisionPanel, RosterPanel, AllocatePanel, PregamePanel, TitleScreen, EndingScreen },
+  components: { Scorebar, Feed, DecisionPanel, RosterPanel, AllocatePanel, TitleScreen, EndingScreen },
   setup() {
     const panel = computed(() => {
       const k = store.prompt?.kind;
       if (k === 'ROSTER') return 'RosterPanel';
       if (k === 'ALLOCATE') return 'AllocatePanel';
-      if (k === 'PREGAME') return 'PregamePanel';
       if (store.prompt) return 'DecisionPanel';
       return null;
     });

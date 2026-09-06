@@ -74,7 +74,7 @@ function pts(rating, weight) {
  * @property {number} defenseField 我方（或對方）守備均值
  * @property {number} opponentStrength 對手國家實力 0..100
  * @property {CoachAttr} coach
- * @property {boolean} weAreBatting 決定 opponentStrength 往哪邊修正
+ * @property {boolean} weAreBatting 決定 opponentStrength 與教頭品質往哪邊修正
  * @property {number} pitchCount
  */
 
@@ -108,6 +108,13 @@ export function resolvePlateAppearance(input, rng) {
   const oppSign = weAreBatting ? 1 : -1;
   const oppPts = ((opponentStrength - 50) / 25) * TUNING.atBat.nationStrength * oppSign;
 
+  // 教頭品質：我方打擊時幫我方，我方投球時壓對方。
+  // 這是教頭能力唯一「不透過決策選項」就生效的管道。
+  const coachAvg = (coach.bullpen + coach.scouting + coach.communication
+    + coach.conditioning + coach.intel) / 5;
+  // 基準點是起始能力，不是刻度中點 —— 見 tuning.js 的說明。
+  const coachPts = ((coachAvg - TUNING.coach.startAttr) / 25) * TUNING.atBat.coachQuality * oppSign;
+
   const form = batter.condition.form;
   const clutch = batter.traits.includes('CLUTCH') ? 6 : 0;
 
@@ -118,10 +125,10 @@ export function resolvePlateAppearance(input, rng) {
     HBP: pts(control, w.controlToBB) * 0.4,
     OUT_G: 0,
     OUT_F: 0,
-    '1B': pts(bat.contact, w.contactTo1B) + pts(bat.speed, w.speedTo1B) + oppPts + form + clutch,
-    '2B': pts(bat.power, w.powerTo2B) + pts(bat.contact, w.contactTo2B) + oppPts + form,
-    '3B': pts(bat.speed, w.speedTo3B) + oppPts,
-    HR: pts(bat.power, w.powerToHR) + pts(control, w.controlToHR) + oppPts + form + clutch,
+    '1B': pts(bat.contact, w.contactTo1B) + pts(bat.speed, w.speedTo1B) + oppPts + coachPts + form + clutch,
+    '2B': pts(bat.power, w.powerTo2B) + pts(bat.contact, w.contactTo2B) + oppPts + coachPts + form,
+    '3B': pts(bat.speed, w.speedTo3B) + oppPts + coachPts,
+    HR: pts(bat.power, w.powerToHR) + pts(control, w.controlToHR) + oppPts + coachPts + form + clutch,
     ERR: pts(defenseField, w.fieldToErr),
   };
 

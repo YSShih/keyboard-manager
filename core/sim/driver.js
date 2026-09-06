@@ -31,6 +31,40 @@ export const POLICY_GREEDY = {
   },
 };
 
+/**
+ * 教頭代打的決策策略。自動結算的比賽用它，判斷品質由「用兵」決定。
+ *
+ * 沒有這個的話，自動結算的比賽等於用固定策略打完，教頭能力只影響那兩場重點戰 ——
+ * 一屆十場裡有八場跟你是誰無關，那養成就沒有意義。
+ *
+ * @param {import('../domain/types.js').CoachAttr} coach
+ * @returns {Policy}
+ */
+export function makeCoachPolicy(coach) {
+  return {
+    decide(prompt, rng) {
+      const usable = prompt.options.filter((o) => !o.lockedReason);
+      const list = usable.length > 0 ? usable : prompt.options;
+      if (list.length <= 1) return list[0]?.id ?? '';
+
+      // 期望值＝成功幅度 × 成功率 − 失敗幅度 × 失敗率。
+      // 幅度由 baseRate 反推（引擎用 SWING_BASE × (1 − baseRate) 算幅度），
+      // 所以低機率的選項賭得大、高機率的賭得小，EV 才有得比。
+      const scored = list.map((o) => {
+        const base = o.odds?.base ?? 0.5;
+        const final = o.odds?.final ?? 0.5;
+        const swing = 1 - base;
+        return { id: o.id, ev: swing * (2 * final - 1) };
+      }).sort((a, b) => b.ev - a.ev || (a.id < b.id ? -1 : 1));
+
+      // 用兵決定會不會選到最好的那個。用兵 22 約 40% 選錯，用兵 90 約 16%。
+      const mistake = Math.min(0.55, Math.max(0.05, 0.45 - ((coach.bullpen - 50) / 25) * 0.18));
+      const pick = rng.bool(mistake) ? (scored[1] ?? scored[0]) : scored[0];
+      return pick?.id ?? '';
+    },
+  };
+}
+
 /** 隨機選（用來看「亂玩」的下限在哪）。 */
 export const POLICY_RANDOM = {
   /** @param {DecisionPrompt} p @param {import('../rng/rng.js').Rng} rng */

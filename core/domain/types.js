@@ -115,11 +115,18 @@
 /** @typedef {'publicApproval'|'assocTrust'|'playerMorale'} MeterKey */
 
 /**
+ * 教練身分。階段一固定為 NT_MANAGER，聲望仍然計算與顯示但不觸發升降。
+ * @typedef {'CPBL_COACH'|'NT_COACH'|'NT_MANAGER'} CoachRole
+ */
+
+/**
  * @typedef {object} Coach
  * @property {string} name
  * @property {CoachAttr} attrs
  * @property {CoachAttr} caps 隱藏上限，UI 顯示「用兵 26/49」
  * @property {number} unspentPoints
+ * @property {number} prestige 教練聲望 0..100，決定角色階層
+ * @property {CoachRole} role
  * @property {Meters} meters
  * @property {readonly string[]} flags 敘事旗標，事件卡條件用
  */
@@ -155,17 +162,37 @@
  * @property {number} minWins   晉級所需最低勝場；未達即淘汰
  * @property {string} eliminatedRank 未晉級時的最終名次標籤
  * @property {number} eliminatedRankNum 未晉級時的名次數字（供門票判定）
+ * @property {?ConsolationDef} [consolation] 未晉級時還要打的敗部戰（例如奧運銅牌戰）
+ */
+
+/**
+ * 敗部戰。沒有這個的話，輸掉四強就直接白拿一面銅牌 ——
+ * 真實奧運輸了四強是要打銅牌戰的，贏才有牌。
+ * @typedef {object} ConsolationDef
+ * @property {string} name
+ * @property {string} opponent
+ * @property {number} winRank
+ * @property {string} winLabel
+ * @property {number} loseRank
+ * @property {string} loseLabel
  */
 
 /**
  * @typedef {object} TournamentDef
  * @property {string} id
  * @property {number} year
+ * @property {string} month
  * @property {string} name
  * @property {string} subtitle
+ * @property {1|2} tier 一級賽事重點戰 2 場，二級 1 場
+ * @property {string} intro 開場敘事
  * @property {readonly StageDef[]} stages
  * @property {number} pointsPerWin
  * @property {readonly {rank:number, label:string, points:number}[]} rankRewards
+ * @property {Record<number, number>} prestige 名次 → 聲望變化
+ * @property {?('ticket'|'gold')} stake 這屆賭的是什麼（奧運門票／金牌）
+ * @property {?string} requiresFlag 有值時，只有帶著這個 flag 才會遊玩
+ * @property {?string} skipsIfFlag 有值時，帶著這個 flag 就跳過
  */
 
 /**
@@ -295,6 +322,7 @@
  * @typedef {{t:'coachAttr', attr:CoachAttrKey, delta:number}
  *   | {t:'meter', meter:MeterKey, delta:number}
  *   | {t:'points', delta:number}
+ *   | {t:'prestige', delta:number}
  *   | {t:'playerRating', target:CastRef, group:'bat'|'pit', key:string, delta:number}
  *   | {t:'playerLoyalty', target:CastRef, delta:number}
  *   | {t:'playerForm', target:CastRef, delta:number}
@@ -328,6 +356,7 @@
  * @property {string} label
  * @property {number} baseRate 明碼基準成功率
  * @property {readonly ModifierRule[]} [rateMods]
+ * @property {readonly string[]} preview 玩家看得到的風險報酬說明
  * @property {readonly Effect[]} onSuccess
  * @property {readonly Effect[]} onFail
  * @property {string} successText
@@ -431,7 +460,21 @@
  * @property {number} seq 已消耗的決策序號
  * @property {?DecisionPrompt} pending
  * @property {readonly NarrativeEntry[]} log
+ * @property {readonly TournamentRecord[]} history 走過的每一屆，供結局回顧
  * @property {?{id:string, title:string, text:string}} ending
+ */
+
+/**
+ * 一屆賽事的成績摘要。
+ * @typedef {object} TournamentRecord
+ * @property {string} defId
+ * @property {number} year
+ * @property {string} name
+ * @property {string} rankLabel
+ * @property {number} rankNum
+ * @property {number} wins
+ * @property {number} losses
+ * @property {boolean} beatJpnOrKor
  */
 
 export {};

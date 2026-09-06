@@ -16,10 +16,22 @@ import { TUNING } from '../../content/tuning.js';
 /**
  * 名單決策的 optionId 編碼：'auto' 或 'ids:P01,P05,...'
  * @param {readonly PlayerId[]} ids
+ * @param {'aggressive'|'balanced'|'conservative'} [stance]
  * @returns {string}
  */
-export function encodeRosterChoice(ids) {
-  return `ids:${ids.join(',')}`;
+export function encodeRosterChoice(ids, stance = 'balanced') {
+  return `ids:${ids.join(',')}|stance:${stance}`;
+}
+
+/**
+ * 從名單決策的 optionId 取出戰術方針。
+ * @param {string|undefined} optionId
+ * @returns {'aggressive'|'balanced'|'conservative'}
+ */
+export function decodeStance(optionId) {
+  const m = /\|stance:(\w+)/.exec(optionId ?? '');
+  const v = m?.[1];
+  return v === 'aggressive' || v === 'conservative' ? v : 'balanced';
 }
 
 /**
@@ -40,7 +52,8 @@ export function encodeAllocChoice(alloc) {
  */
 export function decodeRosterChoice(optionId, fallback, st) {
   if (!optionId || !optionId.startsWith('ids:')) return fallback;
-  const ids = /** @type {PlayerId[]} */ (optionId.slice(4).split(',').filter(Boolean));
+  const body = optionId.slice(4).split('|')[0] ?? '';
+  const ids = /** @type {PlayerId[]} */ (body.split(',').filter(Boolean));
   const valid = ids.filter((id) => st.players[id]);
   if (valid.length !== TUNING.pool.rosterSize) return fallback;
   return valid;

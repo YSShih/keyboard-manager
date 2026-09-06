@@ -32,6 +32,9 @@ function canonical(v) {
  * 要有意更新時：跑 `node tools/golden.js` 產生新的區塊貼上來，並在 commit 訊息裡說明原因。
  *
  * 更新紀錄：
+ * - 2026-09-06 生涯改版後更新。時間線從 2024 年末開始、納入六個賽事、
+ *   改為混合節奏（多數比賽自動結算，只有重點戰逐球）、
+ *   加入教頭品質對全隊的直接影響。這是徹底的改版，舊種子碼全部失效。
  * - 2026-09-05 遊玩機制調整後更新。變動包含：每場比賽新增賽前調度（選先發、
  *   定跑壘方針）、跑壘方針實際影響推進與被觸殺機率、新增盜壘動作、
  *   補上兩張寬觸發決策模板（原本 11.6% 的比賽零決策）、每場賽後即時給點並分配、
@@ -45,25 +48,45 @@ const GOLDEN = [
   {
     seed: 11111,
     seedCode: '0800-002P-SYM',
-    ending: 'ticket',
-    record: 'CZEW8-2 CHNW6-4 AUSL7-10 NEDW6-4 KORL1-5 MEXW2-1 PURW10-7 USAW8-5 JPNW9-8 VENL3-5',
-    approval: 86,
+    ending: 'olympic_empty',
+    path: '第 31 屆:亞軍 | 第六屆世界棒:第 13 名 | 愛知名古屋亞:金牌 | WBSC 世:八強 | 奧運最終資格:取得門票 | 洛杉磯奧運棒:第 4 名',
+    prestige: 83,
+    approval: 89,
   },
   {
-    seed: 20260905,
-    seedCode: '0800-4TJG-AFH',
-    ending: 'early_out',
-    record: 'CZEL1-3 CHNW3-2 AUSW6-4 NEDL3-4 KORW4-3 MEXL3-5 PURL10-14',
-    approval: 26,
+    seed: 20241124,
+    seedCode: '0800-4TDN-S2F',
+    ending: 'olympic_empty',
+    path: '第 31 屆:亞軍 | 第六屆世界棒:第 4 名 | 愛知名古屋亞:銀牌 | WBSC 世:冠軍 | 洛杉磯奧運棒:第 4 名',
+    prestige: 100,
+    approval: 100,
   },
   {
     seed: 777777,
     seedCode: '0800-05XW-CDT',
-    ending: 'so_close',
-    record: 'CZEW11-4 CHNW9-8 AUSL1-4 NEDW9-1 KORL4-5 MEXL3-6 PURW8-6 USAL5-6 JPNL4-5',
-    approval: 34,
+    ending: 'olympic_empty',
+    path: '第 31 屆:亞軍 | 第六屆世界棒:第 13 名 | 愛知名古屋亞:第 4 名 | WBSC 世:第 4 名 | 洛杉磯奧運棒:小組出局',
+    prestige: 11,
+    approval: 21,
   },
 ];
+
+/**
+ * 把生涯走過的每一屆與最終名次壓成一行，當作快照的主體。
+ * @param {readonly import('../core/domain/types.js').CareerEvent[]} events
+ * @returns {string}
+ */
+function pathOf(events) {
+  /** @type {string[]} */
+  const out = [];
+  for (const e of events) {
+    if (e.t === 'PHASE' && /最終/.test(e.title)) {
+      const m = /^(.+?)　最終(.+)$/.exec(e.title);
+      if (m) out.push(`${m[1]?.slice(0, 6)}:${m[2]}`);
+    }
+  }
+  return out.join(' | ');
+}
 
 /** @param {number} seed @param {string} policyName */
 function runCareerFor(seed, policyName = 'greedy') {
@@ -101,14 +124,14 @@ test('不同選擇會導向不同結果（否則決策是裝飾）', () => {
  * 那不一定是 bug，但一定需要一個人親自判斷要不要接受。
  */
 test('golden seeds：釘住既有種子的結果', () => {
-  const actual = [11111, 20260905, 777777].map((seed) => {
-    const { state } = runCareerFor(seed);
+  const actual = [11111, 20241124, 777777].map((seed) => {
+    const { state, events } = runCareerFor(seed);
     return {
       seed,
       seedCode: state.seedCode,
       ending: state.ending?.id,
-      record: state.tournament?.results
-        .map((r) => `${r.opponent}${r.win ? 'W' : 'L'}${r.runsFor}-${r.runsAgainst}`).join(' '),
+      path: pathOf(events),
+      prestige: state.coach.prestige,
       approval: state.coach.meters.publicApproval,
     };
   });
