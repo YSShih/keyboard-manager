@@ -6,8 +6,8 @@ import { runCareerHeadless, makeCareerPolicy } from '../core/career/driver.js';
 import { runGameHeadless, POLICY_GREEDY, POLICY_FIRST, POLICY_RANDOM } from '../core/sim/driver.js';
 import { generatePool } from '../core/career/generate.js';
 import { suggestRoster, gameSquad } from '../core/career/roster.js';
-import { nation } from '../content/v1/nations.js';
-import { DECISION_TEMPLATES } from '../content/v1/decisions.js';
+import { nation } from '../content/data/nations.js';
+import { DECISION_TEMPLATES } from '../content/data/decisions.js';
 import { makeSave, replaySave } from '../core/save/save.js';
 
 /**

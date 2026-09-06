@@ -10,8 +10,8 @@ import { POLICY_GREEDY } from '../core/sim/driver.js';
 import { generatePool } from '../core/career/generate.js';
 import { suggestRoster, gameSquad } from '../core/career/roster.js';
 import { runGameHeadless } from '../core/sim/driver.js';
-import { nation } from '../content/v1/nations.js';
-import { DECISION_TEMPLATES } from '../content/v1/decisions.js';
+import { nation } from '../content/data/nations.js';
+import { DECISION_TEMPLATES } from '../content/data/decisions.js';
 import { TUNING } from '../content/tuning.js';
 
 /** @param {number} seed */

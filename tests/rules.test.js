@@ -13,8 +13,8 @@ import { suggestRoster, gameSquad } from '../core/career/roster.js';
 import { runGameHeadless, POLICY_GREEDY } from '../core/sim/driver.js';
 import { newCareer } from '../core/career/career.js';
 import { runCareerHeadless, makeCareerPolicy } from '../core/career/driver.js';
-import { nation } from '../content/v1/nations.js';
-import { DECISION_TEMPLATES } from '../content/v1/decisions.js';
+import { nation } from '../content/data/nations.js';
+import { DECISION_TEMPLATES } from '../content/data/decisions.js';
 import { pullLimit, carryOverPitches } from '../core/sim/atBat.js';
 import { TUNING } from '../content/tuning.js';
 

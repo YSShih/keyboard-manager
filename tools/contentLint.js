@@ -11,11 +11,11 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { DECISION_TEMPLATES } from '../content/v1/decisions.js';
-import { ARCHETYPES } from '../content/v1/archetypes.js';
-import { NATIONS, NATION_BY_CODE } from '../content/v1/nations.js';
-import { PREMIER12_2027 } from '../content/v1/tournaments.js';
-import { BLOCKED_NAMES, NAMES } from '../content/v1/names.js';
+import { DECISION_TEMPLATES } from '../content/data/decisions.js';
+import { ARCHETYPES } from '../content/data/archetypes.js';
+import { NATIONS, NATION_BY_CODE } from '../content/data/nations.js';
+import { PREMIER12_2027 } from '../content/data/tournaments.js';
+import { BLOCKED_NAMES, NAMES } from '../content/data/names.js';
 import { templateVars } from '../core/content/template.js';
 import { TUNING } from '../content/tuning.js';
 

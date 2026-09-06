@@ -1,6 +1,7 @@
 // @ts-check
 import { TUNING } from '../../content/tuning.js';
 import { clamp } from '../odds/odds.js';
+import { carryOverPitches, pullLimit } from '../domain/workload.js';
 
 /** @typedef {import('../domain/types.js').Player} Player */
 /** @typedef {import('../domain/types.js').PaOutcome} PaOutcome */
@@ -22,6 +23,9 @@ import { clamp } from '../odds/odds.js';
  * 每一條修正都帶著給玩家看的中文 label，賽後「這球為什麼」面板直接攤開。
  */
 
+// 這兩個是領域規則，實作在 core/domain/workload.js；這裡轉出以保持既有 import 可用。
+export { carryOverPitches, pullLimit };
+
 /** @type {readonly PaOutcome[]} */
 export const OUTCOMES = ['K', 'BB', 'HBP', 'OUT_G', 'OUT_F', '1B', '2B', '3B', 'HR', 'ERR'];
 
@@ -31,37 +35,6 @@ export const OUTCOME_LABEL = {
   OUT_G: '滾地出局', OUT_F: '飛球出局',
   '1B': '一壘安打', '2B': '二壘安打', '3B': '三壘安打', HR: '全壘打', ERR: '失誤上壘',
 };
-
-/**
- * 能力值換算成相對百分比修正。
- * @param {number} rating
- * @param {number} weight 能力每高於 50 共 25 點時的百分比
- * @returns {number}
- */
-function pts(rating, weight) {
-  return ((rating - 50) / 25) * weight;
-}
-
-/**
- * 賽會內累積下來、還沒被休息消化掉的球數。
- * @param {import('../domain/types.js').Workload} w
- * @returns {number}
- */
-export function carryOverPitches(w) {
-  // pitchesInEvent 已經在賽後處理時被休息消化過了，這裡只做權重換算。
-  return Math.max(0, w.pitchesInEvent) * TUNING.fatigue.carryOverWeight;
-}
-
-/**
- * 這名投手該在幾球左右換下來。先發與後援的合理用量差很多。
- * @param {import('../domain/types.js').Player} p
- * @returns {number}
- */
-export function pullLimit(p) {
-  const f = TUNING.fatigue;
-  const base = p.primary === 'SP' ? f.pullLimitStarter : f.pullLimitReliever;
-  return Math.round(base + ((p.ratings.pit.stamina - 50) / 25) * f.pullLimitStaminaSwing);
-}
 
 /**
  * 投手疲勞造成的能力衰減。
@@ -82,6 +55,16 @@ export function fatiguePenalty(pitchCount, stamina, conditioning) {
   }
   penalty = Math.max(0, penalty * Math.max(0.2, relief));
   return { penalty, label: `投手球數 ${pitchCount} 球` };
+}
+
+/**
+ * 能力值換算成相對百分比修正。
+ * @param {number} rating
+ * @param {number} weight 能力每高於 50 共 25 點時的百分比
+ * @returns {number}
+ */
+function pts(rating, weight) {
+  return ((rating - 50) / 25) * weight;
 }
 
 /**

@@ -1,7 +1,7 @@
 // @ts-check
 import { overall } from './generate.js';
 import { TUNING } from '../../content/tuning.js';
-import { carryOverPitches } from '../sim/atBat.js';
+import { carryOverPitches } from '../domain/workload.js';
 
 /** @typedef {import('../domain/types.js').Player} Player */
 /** @typedef {import('../domain/types.js').PlayerId} PlayerId */

@@ -22,7 +22,6 @@ export const SAVE_FORMAT_VERSION = 1;
  * @property {string} seedCode
  * @property {string} coachName
  * @property {string} engineVersion
- * @property {{id:string, version:string}} contentPack
  * @property {DecisionRecord[]} decisions
  * @property {string} checksum
  */
@@ -47,7 +46,6 @@ export function makeSave({ seedCode, coachName, decisions }) {
     seedCode,
     coachName,
     engineVersion: ENGINE_VERSION,
-    contentPack: { id: 'bbm-content', version: 'v1' },
     decisions,
   };
   return { ...body, checksum: checksum(canonical(body)) };

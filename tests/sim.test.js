@@ -8,8 +8,8 @@ import { resolvePlateAppearance, fatiguePenalty, OUTCOMES } from '../core/sim/at
 import { generatePool } from '../core/career/generate.js';
 import { suggestRoster, gameSquad } from '../core/career/roster.js';
 import { runGameHeadless, POLICY_GREEDY } from '../core/sim/driver.js';
-import { nation } from '../content/v1/nations.js';
-import { DECISION_TEMPLATES } from '../content/v1/decisions.js';
+import { nation } from '../content/data/nations.js';
+import { DECISION_TEMPLATES } from '../content/data/decisions.js';
 import { TUNING } from '../content/tuning.js';
 
 const rng = (k = 'x') => makeRng(1, k);

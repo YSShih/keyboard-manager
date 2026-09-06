@@ -11,8 +11,8 @@
 import { generatePool, overall } from '../core/career/generate.js';
 import { suggestRoster, gameSquad } from '../core/career/roster.js';
 import { runGameHeadless, POLICY_GREEDY, POLICY_RANDOM, POLICY_FIRST } from '../core/sim/driver.js';
-import { nation, NATIONS } from '../content/v1/nations.js';
-import { DECISION_TEMPLATES } from '../content/v1/decisions.js';
+import { nation, NATIONS } from '../content/data/nations.js';
+import { DECISION_TEMPLATES } from '../content/data/decisions.js';
 import { TUNING } from '../content/tuning.js';
 import { newCareer } from '../core/career/career.js';
 import { runCareerHeadless, makeCareerPolicy } from '../core/career/driver.js';

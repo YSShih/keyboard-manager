@@ -17,7 +17,7 @@ import { makeOpponentSquad } from './opponent.js';
 /** @typedef {import('../domain/types.js').SimEvent} SimEvent */
 /** @typedef {import('../domain/types.js').DecisionPrompt} DecisionPrompt */
 /** @typedef {import('../domain/types.js').DecisionResponse} DecisionResponse */
-/** @typedef {import('../../content/v1/decisions.js').Tmpl} Tmpl */
+/** @typedef {import('../../content/data/decisions.js').Tmpl} Tmpl */
 
 /**
  * @typedef {object} GameContext

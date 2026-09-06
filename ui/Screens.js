@@ -1,7 +1,7 @@
 // @ts-check
 import { defineComponent, computed, ref, onMounted } from 'vue';
 import { store, start, reset, randomSeedCode, currentSeedCode, decisionCount } from '../app/store.js';
-import { PREMIER12_2027, OLYMPIC_BERTH_RULE } from '../content/v1/tournaments.js';
+import { PREMIER12_2027, OLYMPIC_BERTH_RULE } from '../content/data/tournaments.js';
 
 export const TitleScreen = defineComponent({
   name: 'TitleScreen',

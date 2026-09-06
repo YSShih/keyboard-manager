@@ -2,8 +2,8 @@
 import { makeRng } from '../rng/rng.js';
 import { clamp } from '../odds/odds.js';
 import { TUNING } from '../../content/tuning.js';
-import { NAMES, BLOCKED_NAME_SET } from '../../content/v1/names.js';
-import { ARCHETYPES, TRAITS } from '../../content/v1/archetypes.js';
+import { NAMES, BLOCKED_NAME_SET } from '../../content/data/names.js';
+import { ARCHETYPES, TRAITS } from '../../content/data/archetypes.js';
 
 /** @typedef {import('../domain/types.js').Player} Player */
 /** @typedef {import('../domain/types.js').PlayerId} PlayerId */

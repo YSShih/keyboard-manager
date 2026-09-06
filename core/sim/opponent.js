@@ -1,7 +1,7 @@
 // @ts-check
 import { makeRng } from '../rng/rng.js';
 import { clamp } from '../odds/odds.js';
-import { namePool } from '../../content/v1/opponentNames.js';
+import { namePool } from '../../content/data/opponentNames.js';
 
 /** @typedef {import('../domain/types.js').Player} Player */
 /** @typedef {import('../domain/types.js').NationDef} NationDef */
